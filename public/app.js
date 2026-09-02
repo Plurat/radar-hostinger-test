@@ -20,6 +20,7 @@ const sourcesCount = document.getElementById('sources-count');
 const evidenceCount = document.getElementById('evidence-count');
 const gapsCount = document.getElementById('gaps-count');
 const researchNote = document.getElementById('research-note');
+const dedupSummary = document.getElementById('dedup-summary');
 
 let currentInvestigationId = null;
 let pollTimer = null;
@@ -109,6 +110,7 @@ function renderDetail(data) {
   gapsCount.textContent = data.counts?.gaps ?? 0;
   renderJob(data.latest_job);
   renderSources(data.sources || []);
+  renderDedupSummary(data.relations, data.counts?.sources || 0);
 
   const jobStatus = data.latest_job?.status;
   const active = ['queued', 'running'].includes(jobStatus);
@@ -161,23 +163,39 @@ function confidenceLabel(level) {
   return level === 'high' ? 'ALTA' : level === 'low' ? 'BAIXA' : 'MÉDIA';
 }
 
+function renderDedupSummary(relations, total) {
+  if (!dedupSummary) return;
+  const duplicateSources = Number(relations?.duplicate_sources || 0);
+  const relatedPairs = Number(relations?.related_pairs || 0);
+  const unique = Math.max(0, Number(total || 0) - duplicateSources);
+  dedupSummary.innerHTML = total
+    ? `<strong>${unique} fontes únicas</strong> · ${duplicateSources} duplicatas prováveis · ${relatedPairs} relações entre fontes semelhantes`
+    : '';
+}
+
 function renderSources(sources) {
   if (!sources.length) {
     sourcesArea.innerHTML = '<div class="empty">Nenhuma fonte armazenada ainda.</div>';
     return;
   }
-  sourcesArea.innerHTML = sources.map((source, index) => `
+  sourcesArea.innerHTML = sources.map((source, index) => {
+    const confidence = confidenceLabel(source.confidence_level);
+    const relationNote = (source.relations || []).length
+      ? `<div class="relation-note">${source.relations.map(r => r.type === 'duplicate' ? 'Duplicata provável' : 'Relacionada a outra fonte').join(' · ')}</div>`
+      : '';
+    return `
     <article class="source-card">
       <div class="source-top">
         <div class="source-domain">${escapeHtml(source.domain || 'web')} · ${escapeHtml(sourceTypeLabel(source.source_type))}</div>
-        <div class="source-score-group"><span class="source-score">Radar ${escapeHtml((Number(source.ranking_score || 0) * 100).toFixed(0))}/100</span><span class="confidence confidence-${escapeHtml(source.confidence_level || 'medium')}"><span class="confidence-dot" aria-hidden="true"></span><span>Confiança ${escapeHtml((Number(source.confidence_score || 0) * 100).toFixed(0))}</span><strong>${escapeHtml(source.confidence_level === 'high' ? 'ALTA' : source.confidence_level === 'low' ? 'BAIXA' : 'MÉDIA')}</strong></span></div>
+        <div class="source-score-group"><span class="source-score">Radar ${escapeHtml((Number(source.ranking_score || 0) * 100).toFixed(0))}/100</span><span class="confidence confidence-${escapeHtml(source.confidence_level || 'medium')}" title="${escapeHtml(confidence)} confiança"><span class="confidence-dot" aria-hidden="true"></span><strong>${escapeHtml(confidence)}</strong></span></div>
       </div>
       <h4><span class="source-rank">#${index + 1}</span> <a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a></h4>
       <div class="score-breakdown"><span>Relevância ${escapeHtml((Number(source.relevance_score || 0) * 100).toFixed(0))}</span><span>Qualidade ${escapeHtml((Number(source.quality_score || 0) * 100).toFixed(0))}</span><span>Autoridade ${escapeHtml((Number(source.authority_score || 0) * 100).toFixed(0))}</span><span>Recência ${source.recency_score == null ? 'não identificada' : `${escapeHtml(source.recency_label || 'data disponível')} · ${escapeHtml((Number(source.recency_score) * 100).toFixed(0))}`}</span><span>Correspondência ${escapeHtml((Number(source.correspondence_score || 0) * 100).toFixed(0))}</span></div>
       ${source.summary ? `<p>${escapeHtml(source.summary)}</p>` : ''}
-      <small class="source-meta">${source.published_at ? `Data de publicação: ${escapeHtml(formatDate(source.published_at))}` : 'Data de publicação: não identificada'} · Coletada em ${escapeHtml(formatDate(source.created_at))}</small>
-    </article>
-  `).join('');
+      ${relationNote}
+      <div class="source-meta"><strong>${source.published_at ? `Data de publicação: ${escapeHtml(formatDate(source.published_at))}` : 'Data de publicação: não identificada'}</strong><span>Coletada em ${escapeHtml(formatDate(source.created_at))}</span></div>
+    </article>`;
+  }).join('');
 }
 
 function startPolling() {

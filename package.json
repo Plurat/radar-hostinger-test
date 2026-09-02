@@ -1,0 +1,16 @@
+{
+  "name": "radar-hostinger-test",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Teste mínimo de compatibilidade Node.js + Express para Hostinger Web App",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

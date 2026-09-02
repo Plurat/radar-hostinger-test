@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import mysql from 'mysql2/promise';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -10,11 +11,33 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const maxResults = Math.min(Math.max(Number(process.env.SEARCH_MAX_RESULTS || 15), 1), 20);
-const appVersion = '0.4.0';
+const appVersion = '0.5.0';
 const openAiModel = String(process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim();
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const loginAttempts = new Map();
+function hashPassword(password, salt=crypto.randomBytes(16).toString('hex')) { return { salt, hash: crypto.scryptSync(String(password), salt, 64).toString('hex') }; }
+function verifyPassword(password,salt,expected){ try { const actual=crypto.scryptSync(String(password),String(salt),64).toString('hex'); return crypto.timingSafeEqual(Buffer.from(actual,'hex'),Buffer.from(String(expected),'hex')); } catch { return false; } }
+function hashToken(token){ return crypto.createHash('sha256').update(String(token)).digest('hex'); }
+function normalizeEmail(v){ return String(v||'').trim().toLowerCase(); }
+function isAdmin(user){ return user?.role==='admin'; }
+function publicUser(u){ return {id:Number(u.id),email:u.email,name:u.name||'',role:u.role,status:u.status,investigations_limit:Number(u.investigations_limit),research_limit:Number(u.research_limit),analysis_limit:Number(u.analysis_limit),sources_per_research:Number(u.sources_per_research),created_at:u.created_at,last_login_at:u.last_login_at}; }
+function monthStart(){ const d=new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; }
+async function ensureAuthSchema(){
+ await pool.query(`CREATE TABLE IF NOT EXISTS users (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,email VARCHAR(255) NOT NULL,name VARCHAR(255) NULL,password_hash VARCHAR(255) NOT NULL,password_salt VARCHAR(128) NOT NULL,role VARCHAR(32) NOT NULL DEFAULT 'user',status VARCHAR(32) NOT NULL DEFAULT 'active',investigations_limit INT NOT NULL DEFAULT 10,research_limit INT NOT NULL DEFAULT 30,analysis_limit INT NOT NULL DEFAULT 20,sources_per_research INT NOT NULL DEFAULT 15,created_at DATETIME NOT NULL,updated_at DATETIME NOT NULL,last_login_at DATETIME NULL,PRIMARY KEY(id),UNIQUE KEY uq_users_email(email)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+ await pool.query(`CREATE TABLE IF NOT EXISTS sessions (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,user_id BIGINT UNSIGNED NOT NULL,token_hash CHAR(64) NOT NULL,expires_at DATETIME NOT NULL,created_at DATETIME NOT NULL,last_seen_at DATETIME NULL,PRIMARY KEY(id),UNIQUE KEY uq_sessions_token(token_hash),KEY idx_sessions_user(user_id),CONSTRAINT fk_sessions_user FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+ const [[c]]=await pool.query(`SELECT COUNT(*) n FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='investigations' AND column_name='user_id'`); if(!Number(c.n)) await pool.query(`ALTER TABLE investigations ADD COLUMN user_id BIGINT UNSIGNED NULL, ADD KEY idx_investigations_user(user_id)`);
+ const email=normalizeEmail(process.env.ADMIN_EMAIL), password=String(process.env.ADMIN_PASSWORD||''); if(email && password){ const [[u]]=await pool.query(`SELECT id FROM users WHERE email=? LIMIT 1`,[email]); if(!u){const {salt,hash}=hashPassword(password);await pool.query(`INSERT INTO users(email,name,password_hash,password_salt,role,status,investigations_limit,research_limit,analysis_limit,sources_per_research,created_at,updated_at) VALUES(?,?,?,?, 'admin','active',-1,-1,-1,20,NOW(),NOW())`,[email,'Administrador',hash,salt]);}}
+ const [[admin]]=await pool.query(`SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1`); if(admin) await pool.query(`UPDATE investigations SET user_id=? WHERE user_id IS NULL`,[admin.id]); await pool.query(`DELETE FROM sessions WHERE expires_at<NOW()`).catch(()=>{});
+}
+async function currentUser(req){ const raw=String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('radar_session=')); if(!raw)return null; const token=decodeURIComponent(raw.slice(14)); const [[u]]=await pool.query(`SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>NOW() LIMIT 1`,[hashToken(token)]); if(!u||u.status!=='active')return null; await pool.query(`UPDATE sessions SET last_seen_at=NOW() WHERE token_hash=?`,[hashToken(token)]).catch(()=>{}); return u; }
+async function requireAuth(req,res,next){ try{req.user=await currentUser(req); if(!req.user)return res.status(401).json({error:'Sessão não autenticada.'}); next();}catch{res.status(500).json({error:'Não foi possível validar a sessão.'});} }
+function requireAdmin(req,res,next){ if(!req.user)return res.status(401).json({error:'Sessão não autenticada.'}); if(!isAdmin(req.user))return res.status(403).json({error:'Acesso restrito ao administrador.'}); next(); }
+async function usageForUser(id){ const start=monthStart(); const [[a]]=await pool.query(`SELECT COUNT(*) n FROM investigations WHERE user_id=? AND created_at>=?`,[id,start]); const [[r]]=await pool.query(`SELECT COUNT(*) n FROM research_jobs j JOIN investigations i ON i.id=j.investigation_id WHERE i.user_id=? AND j.job_type='research' AND j.created_at>=?`,[id,start]); const [[x]]=await pool.query(`SELECT COUNT(*) n FROM research_jobs j JOIN investigations i ON i.id=j.investigation_id WHERE i.user_id=? AND j.job_type='analysis' AND j.created_at>=?`,[id,start]); return {investigations:Number(a.n),research:Number(r.n),analysis:Number(x.n)}; }
+function setSession(res,token){res.setHeader('Set-Cookie',`radar_session=${encodeURIComponent(token)}; Max-Age=604800; Path=/; HttpOnly; SameSite=Lax${process.env.NODE_ENV==='production'?'; Secure':''}`);}
+
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -360,7 +383,7 @@ async function getRankedSources(investigationId, title, objective) {
   }).sort((a, b) => b.ranking_score - a.ranking_score || b.id - a.id).slice(0, 50);
 }
 
-async function tavilySearch(query) {
+async function tavilySearch(query, resultLimit=maxResults) {
   const apiKey = String(process.env.TAVILY_API_KEY || '').trim();
   if (!apiKey) {
     const error = new Error('TAVILY_API_KEY não configurada.');
@@ -375,7 +398,7 @@ async function tavilySearch(query) {
       query,
       search_depth: 'basic',
       topic: 'general',
-      max_results: maxResults,
+      max_results: Math.min(maxResults, Math.max(1, Number(resultLimit || maxResults))),
       include_answer: false,
       include_raw_content: false,
       country: 'brazil'
@@ -596,9 +619,13 @@ async function runAnalysisJob(jobId) {
     }
 
     if (!saved) throw Object.assign(new Error('A IA não retornou análises válidas para as fontes.'), { code: 'AI_NO_SOURCE_ANALYSIS' });
+    const inputTokens = Number(result.diagnostics.input_tokens || 0);
+    const outputTokens = Number(result.diagnostics.output_tokens || 0);
+    const estimatedCost = (inputTokens * 0.20 / 1000000) + (outputTokens * 1.20 / 1000000);
+    await pool.query(`INSERT INTO ai_usage(investigation_id,provider,model,input_tokens,output_tokens,estimated_cost,created_at) VALUES(?,?,?,?,?,?,NOW())`, [investigationId,'openai',openAiModel,inputTokens || null,outputTokens || null,Number(estimatedCost.toFixed(6))]);
     const payload = JSON.stringify({ provider:'openai', model:openAiModel, sources_received:sources.length, sources_analyzed:saved,
       evidence:evidenceCount, gaps:gapCount, response_time_ms:result.diagnostics.response_time_ms,
-      request_id:result.diagnostics.request_id, input_tokens:result.diagnostics.input_tokens, output_tokens:result.diagnostics.output_tokens, outcome:'success' });
+      request_id:result.diagnostics.request_id, input_tokens:result.diagnostics.input_tokens, output_tokens:result.diagnostics.output_tokens, estimated_cost:Number(estimatedCost.toFixed(6)), outcome:'success' });
     await pool.query(`UPDATE research_jobs SET status='completed',finished_at=NOW(),payload=? WHERE id=?`, [payload, jobId]);
     await pool.query(`UPDATE investigations SET updated_at=NOW() WHERE id=?`, [investigationId]);
   } catch (error) {
@@ -613,7 +640,7 @@ async function runResearchJob(jobId) {
   let investigationId = null;
   try {
     const [[job]] = await pool.query(
-      `SELECT rj.id, rj.investigation_id, rj.status, i.title, i.objective
+      `SELECT rj.id, rj.investigation_id, rj.status, rj.payload, i.title, i.objective
        FROM research_jobs rj INNER JOIN investigations i ON i.id = rj.investigation_id WHERE rj.id = ?`, [jobId]
     );
     if (!job || job.status !== 'queued') return;
@@ -624,11 +651,13 @@ async function runResearchJob(jobId) {
     const queries = buildSearchQueries(job.title, job.objective);
     if (!queries.length) throw Object.assign(new Error('Não foi possível montar uma consulta de pesquisa.'), { code: 'SEARCH_QUERY' });
 
+    const jobPayload = (() => { try { return job.payload ? JSON.parse(job.payload) : {}; } catch { return {}; } })();
+    const resultLimit = Math.min(maxResults, Math.max(1, Number(jobPayload.max_results || maxResults)));
     const attempts = [];
     let selected = null;
     for (const query of queries) {
       try {
-        const response = await tavilySearch(query);
+        const response = await tavilySearch(query, resultLimit);
         attempts.push({ query, ...response.diagnostics, raw_results: response.results.length });
         if (response.results.length) { selected = { query, ...response }; break; }
       } catch (error) {
@@ -639,7 +668,7 @@ async function runResearchJob(jobId) {
     if (!selected) {
       const error = new Error('A Tavily respondeu sem resultados para as consultas realizadas.');
       error.code = 'SEARCH_EMPTY';
-      error.payload = JSON.stringify({ provider:'tavily', query:queries[0], queries_attempted:queries, attempts, raw_results:0, inserted:0, duplicates:0, max_results:maxResults, outcome:'empty_results' });
+      error.payload = JSON.stringify({ provider:'tavily', query:queries[0], queries_attempted:queries, attempts, raw_results:0, inserted:0, duplicates:0, max_results:resultLimit, outcome:'empty_results' });
       throw error;
     }
 
@@ -681,28 +710,29 @@ async function runResearchJob(jobId) {
   }
 }
 
+
+app.post('/api/auth/login', async (req,res)=>{ const email=normalizeEmail(req.body?.email),password=String(req.body?.password||''),key=`${req.ip}:${email}`,now=Date.now(); let a=loginAttempts.get(key)||{n:0,until:now+60000}; if(now>a.until)a={n:0,until:now+60000}; if(a.n>=5)return res.status(429).json({error:'Muitas tentativas. Aguarde um minuto.'}); const [[u]]=await pool.query(`SELECT * FROM users WHERE email=? LIMIT 1`,[email]); if(!u||u.status!=='active'||!verifyPassword(password,u.password_salt,u.password_hash)){a.n++;loginAttempts.set(key,a);return res.status(401).json({error:'E-mail ou senha inválidos.'});} loginAttempts.delete(key);const token=crypto.randomBytes(32).toString('hex');await pool.query(`INSERT INTO sessions(user_id,token_hash,expires_at,created_at,last_seen_at) VALUES(?,?,DATE_ADD(NOW(),INTERVAL 7 DAY),NOW(),NOW())`,[u.id,hashToken(token)]);await pool.query(`UPDATE users SET last_login_at=NOW() WHERE id=?`,[u.id]);setSession(res,token);res.json({user:publicUser(u)});});
+app.post('/api/auth/logout',async(req,res)=>{const raw=String(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('radar_session='));if(raw)await pool.query(`DELETE FROM sessions WHERE token_hash=?`,[hashToken(decodeURIComponent(raw.slice(14)))]).catch(()=>{});res.setHeader('Set-Cookie','radar_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax');res.json({ok:true});});
+app.get('/api/auth/me',requireAuth,async(req,res)=>res.json({user:publicUser(req.user),usage:await usageForUser(req.user.id)}));
+app.get('/api/admin/users',requireAuth,requireAdmin,async(_req,res)=>{const [rows]=await pool.query(`SELECT id,email,name,role,status,investigations_limit,research_limit,analysis_limit,sources_per_research,created_at,last_login_at FROM users ORDER BY id`);const out=[];for(const u of rows)out.push({...publicUser(u),usage:await usageForUser(u.id)});res.json(out);});
+app.post('/api/admin/users',requireAuth,requireAdmin,async(req,res)=>{const email=normalizeEmail(req.body?.email),name=String(req.body?.name||'').trim(),password=String(req.body?.password||'');if(!email.includes('@'))return res.status(400).json({error:'Informe um e-mail válido.'});if(password.length<8)return res.status(400).json({error:'A senha deve ter pelo menos 8 caracteres.'});const lim=['investigations_limit','research_limit','analysis_limit','sources_per_research'].map(k=>Number(req.body?.[k]??(k==='investigations_limit'?10:k==='research_limit'?30:k==='analysis_limit'?20:15)));if(lim.some(v=>!Number.isInteger(v)||v<1||v>1000))return res.status(400).json({error:'Limites inválidos.'});const {salt,hash}=hashPassword(password);try{const [r]=await pool.query(`INSERT INTO users(email,name,password_hash,password_salt,role,status,investigations_limit,research_limit,analysis_limit,sources_per_research,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,NOW(),NOW())`,[email,name||null,hash,salt,req.body?.role==='admin'?'admin':'user',req.body?.status==='inactive'?'inactive':'active',...lim]);const [[u]]=await pool.query(`SELECT id,email,name,role,status,investigations_limit,research_limit,analysis_limit,sources_per_research,created_at,last_login_at FROM users WHERE id=?`,[r.insertId]);res.status(201).json(publicUser(u));}catch(e){if(e.code==='ER_DUP_ENTRY')return res.status(409).json({error:'Já existe um usuário com este e-mail.'});res.status(500).json({error:e.message});}});
+app.put('/api/admin/users/:id',requireAuth,requireAdmin,async(req,res)=>{const id=Number(req.params.id);const [[u]]=await pool.query(`SELECT * FROM users WHERE id=?`,[id]);if(!u)return res.status(404).json({error:'Usuário não encontrado.'});const vals=['investigations_limit','research_limit','analysis_limit','sources_per_research'].map(k=>Number(req.body?.[k]??u[k]));if(vals.some(v=>!Number.isInteger(v)||v<-1||v>1000))return res.status(400).json({error:'Limites inválidos. Use -1 para ilimitado.'});const role=req.body?.role??u.role,status=req.body?.status??u.status;if(id===Number(req.user.id)&&(role!=='admin'||status!=='active'))return res.status(400).json({error:'Você não pode remover o próprio acesso administrativo.'});await pool.query(`UPDATE users SET name=?,role=?,status=?,investigations_limit=?,research_limit=?,analysis_limit=?,sources_per_research=?,updated_at=NOW() WHERE id=?`,[String(req.body?.name??u.name??'').trim()||null,role,status,...vals,id]);if(status==='inactive')await pool.query(`DELETE FROM sessions WHERE user_id=?`,[id]);const [[x]]=await pool.query(`SELECT id,email,name,role,status,investigations_limit,research_limit,analysis_limit,sources_per_research,created_at,last_login_at FROM users WHERE id=?`,[id]);res.json(publicUser(x));});
+app.post('/api/admin/users/:id/reset-password',requireAuth,requireAdmin,async(req,res)=>{const id=Number(req.params.id),password=String(req.body?.password||'');if(password.length<8)return res.status(400).json({error:'A senha deve ter pelo menos 8 caracteres.'});const {salt,hash}=hashPassword(password);const [r]=await pool.query(`UPDATE users SET password_hash=?,password_salt=?,updated_at=NOW() WHERE id=?`,[hash,salt,id]);if(!r.affectedRows)return res.status(404).json({error:'Usuário não encontrado.'});await pool.query(`DELETE FROM sessions WHERE user_id=?`,[id]);res.json({ok:true});});
+app.get('/api/admin/usage',requireAuth,requireAdmin,async(_req,res)=>{const [[t]]=await pool.query(`SELECT COUNT(*) requests,COALESCE(SUM(input_tokens),0) input_tokens,COALESCE(SUM(output_tokens),0) output_tokens,COALESCE(SUM(estimated_cost),0) estimated_cost FROM ai_usage WHERE created_at>=?`,[monthStart()]);res.json({totals:t});});
 app.get('/api/health', async (_req,res) => {
   try { await pool.query('SELECT 1'); res.json({ok:true,service:'radar-editorial',version:appVersion,framework:'express',node:process.version,database:'mysql',search_provider:'tavily',search_configured:Boolean(String(process.env.TAVILY_API_KEY||'').trim())}); }
   catch(error){ res.status(503).json({ok:false,service:'radar-editorial',database:'unavailable',error:error.message}); }
 });
 
-app.get('/api/investigations', async (_req,res) => {
-  try { const [rows]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations ORDER BY id DESC LIMIT 50`); res.json(rows); }
-  catch(error){ res.status(500).json({error:error.message}); }
-});
+app.get('/api/investigations', requireAuth, async (req,res) => { try { const [rows]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations ${isAdmin(req.user)?'':'WHERE user_id=?'} ORDER BY id DESC LIMIT 50`,isAdmin(req.user)?[]:[req.user.id]); res.json(rows); } catch(e){res.status(500).json({error:e.message});} });
 
-app.post('/api/investigations', async (req,res) => {
-  const title=String(req.body?.title||'').trim(), objective=String(req.body?.objective||'').trim();
-  if(!title) return res.status(400).json({error:'Informe o tema da investigação.'});
-  try { const [result]=await pool.query(`INSERT INTO investigations(title,objective,status,created_at,updated_at) VALUES(?,?, 'draft',NOW(),NOW())`,[title,objective||null]);
-    const [rows]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[result.insertId]); res.status(201).json(rows[0]); }
-  catch(error){ res.status(500).json({error:error.message}); }
-});
+app.post('/api/investigations', requireAuth, async (req,res) => { const title=String(req.body?.title||'').trim(),objective=String(req.body?.objective||'').trim(); if(!title)return res.status(400).json({error:'Informe o tema da investigação.'}); try { const u=await usageForUser(req.user.id); if(!isAdmin(req.user)&&u.investigations>=Number(req.user.investigations_limit))return res.status(429).json({error:`Limite mensal de investigações atingido (${req.user.investigations_limit}).`}); const [r]=await pool.query(`INSERT INTO investigations(user_id,title,objective,status,created_at,updated_at) VALUES(?,?,?,'draft',NOW(),NOW())`,[req.user.id,title,objective||null]); const [[row]]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[r.insertId]);res.status(201).json(row);}catch(e){res.status(500).json({error:e.message});} });
 
-app.get('/api/investigations/:id', async (req,res) => {
+app.get('/api/investigations/:id', requireAuth, async (req,res) => {
   try {
-    const [[investigation]]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[req.params.id]);
+    const [[investigation]]=await pool.query(`SELECT id,user_id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[req.params.id]);
     if(!investigation) return res.status(404).json({error:'Investigação não encontrada.'});
+    if(!isAdmin(req.user) && Number(investigation.user_id)!==Number(req.user.id)) return res.status(403).json({error:'Você não tem acesso a esta investigação.'});
     await scoreInvestigationSources(investigation.id, investigation.title, investigation.objective);
     const relationsSummary = await analyzeSourceRelations(investigation.id);
     const [[counts]]=await pool.query(`SELECT (SELECT COUNT(*) FROM sources WHERE investigation_id=?) AS sources,
@@ -718,29 +748,33 @@ app.get('/api/investigations/:id', async (req,res) => {
   } catch(error){ res.status(500).json({error:error.message}); }
 });
 
-app.post('/api/investigations/:id/jobs', async (req,res) => {
+app.post('/api/investigations/:id/jobs', requireAuth, async (req,res) => {
   const investigationId=Number(req.params.id);
   if(!Number.isInteger(investigationId)||investigationId<1) return res.status(400).json({error:'ID de investigação inválido.'});
   try {
     if(!String(process.env.TAVILY_API_KEY||'').trim()) return res.status(503).json({error:'O motor Web ainda não está configurado: TAVILY_API_KEY ausente.'});
-    const [[investigation]]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[investigationId]);
+    const [[investigation]]=await pool.query(`SELECT id,user_id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[investigationId]);
     if(!investigation) return res.status(404).json({error:'Investigação não encontrada.'});
+    if(!isAdmin(req.user) && Number(investigation.user_id)!==Number(req.user.id)) return res.status(403).json({error:'Você não tem acesso a esta investigação.'});
+    const usage=await usageForUser(req.user.id); if(!isAdmin(req.user) && usage.research>=Number(req.user.research_limit)) return res.status(429).json({error:`Limite mensal de pesquisas Web atingido (${req.user.research_limit}).`});
     const [activeJobs]=await pool.query(`SELECT id,status FROM research_jobs WHERE investigation_id=? AND status IN('queued','running') ORDER BY id DESC LIMIT 1`,[investigationId]);
     if(activeJobs.length) return res.status(409).json({error:'Já existe uma pesquisa na fila ou em execução.'});
-    const [result]=await pool.query(`INSERT INTO research_jobs(investigation_id,status,job_type,payload,created_at) VALUES(?,'queued','research',?,NOW())`,[investigationId,JSON.stringify({provider:'tavily',max_results:maxResults})]);
+    const [result]=await pool.query(`INSERT INTO research_jobs(investigation_id,status,job_type,payload,created_at) VALUES(?,'queued','research',?,NOW())`,[investigationId,JSON.stringify({provider:'tavily',max_results:Math.min(maxResults,Math.max(1,Number(req.user.sources_per_research||maxResults)))})]);
     const [[job]]=await pool.query(`SELECT id,status,job_type,payload,created_at,started_at,finished_at,error_message FROM research_jobs WHERE id=?`,[result.insertId]);
     res.status(201).json({investigation:{...investigation,latest_job:job}}); void runResearchJob(result.insertId);
   } catch(error){ res.status(500).json({error:error.message}); }
 });
 
 
-app.post('/api/investigations/:id/analyses', async (req,res) => {
+app.post('/api/investigations/:id/analyses', requireAuth, async (req,res) => {
   const investigationId=Number(req.params.id);
   if(!Number.isInteger(investigationId)||investigationId<1) return res.status(400).json({error:'ID de investigação inválido.'});
   try {
     if(!String(process.env.OPENAI_API_KEY||'').trim()) return res.status(503).json({error:'A análise por IA ainda não está configurada: OPENAI_API_KEY ausente.'});
-    const [[investigation]]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[investigationId]);
+    const [[investigation]]=await pool.query(`SELECT id,user_id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[investigationId]);
     if(!investigation) return res.status(404).json({error:'Investigação não encontrada.'});
+    if(!isAdmin(req.user) && Number(investigation.user_id)!==Number(req.user.id)) return res.status(403).json({error:'Você não tem acesso a esta investigação.'});
+    const usage=await usageForUser(req.user.id); if(!isAdmin(req.user) && usage.analysis>=Number(req.user.analysis_limit)) return res.status(429).json({error:`Limite mensal de análises por IA atingido (${req.user.analysis_limit}).`});
     const [[sourceCount]] = await pool.query(`SELECT COUNT(*) AS total FROM sources WHERE investigation_id=?`,[investigationId]);
     if(Number(sourceCount.total||0)<1) return res.status(409).json({error:'Nenhuma fonte disponível. Execute uma pesquisa Web antes da análise.'});
     const [activeJobs]=await pool.query(`SELECT id,status FROM research_jobs WHERE investigation_id=? AND status IN('queued','running') ORDER BY id DESC LIMIT 1`,[investigationId]);
@@ -753,7 +787,9 @@ app.post('/api/investigations/:id/analyses', async (req,res) => {
 
 const publicPath=path.join(__dirname,'public');
 app.use(express.static(publicPath,{etag:false,maxAge:0,setHeaders:(res,filePath)=>{if(filePath.endsWith('.css')||filePath.endsWith('.js'))res.setHeader('Cache-Control','no-store');}}));
-app.get(/^(?!\/api(?:\/|$)).*/,(_req,res)=>res.sendFile(path.join(publicPath,'index.html')));
-ensureAnalysisSchema().then(() => {
+app.get('/login',(_req,res)=>res.sendFile(path.join(publicPath,'login.html')));
+app.get('/admin',(_req,res)=>res.sendFile(path.join(publicPath,'admin.html')));
+app.get(/^(?!\/api(?:\/|$)|\/login$|\/admin$)/,(_req,res)=>res.sendFile(path.join(publicPath,'index.html')));
+Promise.all([ensureAnalysisSchema(),ensureAuthSchema()]).then(() => {
   app.listen(port,'0.0.0.0',()=>console.log(`Radar Editorial ${appVersion} running on port ${port}`));
-}).catch(error => { console.error('Falha ao preparar o schema de análise:', error); process.exit(1); });
+}).catch(error => { console.error('Falha ao preparar os schemas:', error); process.exit(1); });

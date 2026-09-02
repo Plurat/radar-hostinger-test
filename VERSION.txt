@@ -1,1 +1,5 @@
-0.1.1-r2
+Radar Editorial 0.2.0
+Web-only MVP
+Real Web Search: Tavily
+Database: MySQL
+Runtime: Express / Node.js 22+

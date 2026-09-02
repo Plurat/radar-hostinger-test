@@ -1,8 +1,8 @@
 {
   "name": "radar-editorial",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Radar Editorial 0.1.0 — Express + MySQL, optimized for Hostinger Node.js Web Apps",
+  "description": "Radar Editorial 0.2.0 — pesquisa Web real com Tavily + Express + MySQL",
   "type": "module",
   "engines": {
     "node": ">=22 <25"

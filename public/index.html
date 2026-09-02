@@ -1,76 +1,89 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Radar Editorial — inteligência editorial">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Radar Editorial — inteligência editorial e pesquisa.">
   <title>Radar Editorial</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <div class="eyebrow">INTELIGÊNCIA EDITORIAL</div>
+  <main class="container">
+    <header class="hero">
+      <div class="eyebrow">INTELIGÊNCIA EDITORIAL</div>
+      <div class="title-row">
         <h1>Radar Editorial</h1>
+        <div class="badges"><span>Web 0.1.1</span><span>MVP</span></div>
       </div>
-      <div class="version">Web 0.1.0</div>
     </header>
 
-    <main class="content">
-      <section class="hero card">
-        <div>
-          <span class="badge">MVP</span>
-          <h2>O que você quer investigar?</h2>
-          <p>
-            Crie uma investigação para organizar a próxima etapa do Radar:
-            pesquisa, fontes, evidências e análise.
-          </p>
-        </div>
-
-        <form id="investigation-form" class="investigation-form">
+    <section id="home-view">
+      <section class="card intro-card">
+        <h2>O que você quer investigar?</h2>
+        <p>Crie uma investigação para organizar pesquisa, fontes, evidências e análise.</p>
+        <form id="investigation-form">
           <label for="title">Tema da investigação</label>
-          <textarea
-            id="title"
-            rows="3"
-            maxlength="500"
-            placeholder="Ex.: Ansiedade e uso de redes sociais"
-            required
-          ></textarea>
+          <input id="title" name="title" maxlength="500" required autocomplete="off" placeholder="Ex.: Ansiedade e uso de redes sociais">
+          <div class="counter" id="counter">0/500</div>
 
           <label for="objective">Objetivo <span>(opcional)</span></label>
-          <textarea
-            id="objective"
-            rows="2"
-            maxlength="1000"
-            placeholder="Ex.: entender tendências, evidências e lacunas editoriais"
-          ></textarea>
+          <textarea id="objective" name="objective" rows="4" maxlength="2000" placeholder="O que você quer descobrir, atualizar ou comparar?"></textarea>
 
-          <div class="form-footer">
-            <span id="counter">0/500</span>
-            <button id="submit-button" type="submit">Iniciar investigação</button>
+          <div class="form-actions">
+            <button id="submit-button" type="submit">Criar investigação</button>
+            <div id="message" class="message" aria-live="polite"></div>
           </div>
         </form>
-
-        <div id="message" class="message hidden" role="status"></div>
       </section>
 
-      <section class="card">
-        <div class="panel-heading">
+      <section class="card history-card">
+        <div class="section-heading">
           <div>
             <div class="eyebrow">HISTÓRICO</div>
             <h3>Investigações</h3>
           </div>
           <button id="refresh-button" class="secondary" type="button">Atualizar</button>
         </div>
+        <div id="investigation-list" class="investigation-list"></div>
+      </section>
+    </section>
 
-        <div id="investigation-list" class="list">
-          <div class="empty">Carregando...</div>
+    <section id="detail-view" class="hidden">
+      <button id="back-button" class="back-button" type="button">← Voltar para investigações</button>
+      <section class="card detail-card">
+        <div class="detail-top">
+          <div>
+            <div class="eyebrow">INVESTIGAÇÃO</div>
+            <h2 id="detail-title">Carregando...</h2>
+          </div>
+          <span id="detail-status" class="status">draft</span>
+        </div>
+        <div class="detail-meta" id="detail-meta"></div>
+        <div class="detail-objective">
+          <h3>Objetivo</h3>
+          <p id="detail-objective">—</p>
         </div>
       </section>
-    </main>
-  </div>
 
+      <section class="card research-card">
+        <div class="section-heading">
+          <div>
+            <div class="eyebrow">PESQUISA</div>
+            <h3>Motor de pesquisa</h3>
+          </div>
+          <button id="start-research-button" type="button">Iniciar pesquisa</button>
+        </div>
+        <div id="job-area" class="job-area"></div>
+        <p class="muted">Nesta versão, o botão apenas cria o job de pesquisa na fila. O motor Web será conectado na próxima etapa.</p>
+      </section>
+
+      <section class="metrics-grid">
+        <article class="card metric-card"><strong id="sources-count">0</strong><span>Fontes</span></article>
+        <article class="card metric-card"><strong id="evidence-count">0</strong><span>Evidências</span></article>
+        <article class="card metric-card"><strong id="gaps-count">0</strong><span>Lacunas</span></article>
+      </section>
+    </section>
+  </main>
   <script src="/app.js" defer></script>
 </body>
 </html>

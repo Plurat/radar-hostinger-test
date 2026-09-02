@@ -1,14 +1,12 @@
-# Deploy — Radar Editorial 0.1.1
+# Hostinger — Radar Editorial 0.1.1-r2
 
-1. Atualize os arquivos do repositório GitHub conectado ao Hostinger.
-2. Mantenha branch `main`, framework `Express`, Node `22.x`, root `./` e entry file `server.js`.
-3. Faça o redeploy.
-4. Não altere as variáveis `DB_*` já configuradas.
-5. Não reimporte o schema: esta versão usa as seis tabelas já existentes.
+Deploy via GitHub conectado ao Hostinger.
 
-Teste:
-- `/api/health`
-- página inicial;
-- abrir uma investigação;
-- clicar em **Iniciar pesquisa**;
-- conferir `research_jobs` no phpMyAdmin.
+- Framework: Express
+- Branch: main
+- Node: 22.x
+- Root: `./`
+- Entry file: `server.js`
+- Banco: manter as variáveis DB_* já configuradas.
+
+Após o commit, fazer Redeploy. Depois abrir o domínio normalmente e usar Ctrl+F5 uma vez.

@@ -180,7 +180,15 @@ app.post('/api/investigations/:id/jobs', async (req, res) => {
 
 // Frontend estático: não depende de Vite/React nem de etapa de build.
 const publicPath = path.join(__dirname, 'public');
-app.use(express.static(publicPath));
+app.use(express.static(publicPath, {
+  etag: false,
+  maxAge: 0,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+  }
+}));
 
 app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
   res.sendFile(path.join(publicPath, 'index.html'));

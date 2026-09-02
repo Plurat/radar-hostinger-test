@@ -1,15 +1,3 @@
-# Radar Editorial — Web 0.1.1
+# Radar Editorial 0.1.1-r2
 
-Evolução do MVP para abrir uma investigação e criar o primeiro `research_job` em fila.
-
-## Nesta versão
-- lista de investigações clicável;
-- página/painel da investigação;
-- objetivo, status e datas;
-- contadores iniciais de fontes/evidências/lacunas;
-- botão **Iniciar pesquisa**;
-- criação de `research_job` com status `queued`;
-- nenhuma busca Web ainda é executada.
-
-## Compatibilidade
-Versão preparada para implantação como **Express** no Hostinger Business, sem Vite, React ou etapa de build.
+Frontend revisado para Hostinger Express. O CSS principal está incorporado diretamente no `public/index.html` para eliminar dependência de carregamento externo de `styles.css` durante esta fase de implantação.

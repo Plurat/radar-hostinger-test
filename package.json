@@ -1,16 +1,25 @@
 {
-  "name": "radar-hostinger-test",
+  "name": "radar-editorial",
   "version": "0.1.0",
   "private": true,
-  "description": "Teste mínimo de compatibilidade Node.js + Express para Hostinger Web App",
+  "description": "Radar Editorial 0.1.0 — React/Vite + Express + MySQL",
   "type": "commonjs",
   "engines": {
-    "node": ">=20 <25"
+    "node": ">=22 <25"
   },
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "mysql2": "^3.14.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.2",
+    "vite": "^7.1.3"
   }
 }

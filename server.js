@@ -1,63 +1,122 @@
 const express = require("express");
+const path = require("path");
+const mysql = require("mysql2/promise");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = Number(process.env.PORT || 3000);
 
-app.get("/", (_req, res) => {
-  res.status(200).send(`
-    <!doctype html>
-    <html lang="pt-BR">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Radar Editorial — Teste Hostinger</title>
-        <style>
-          body {
-            margin: 0;
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            font-family: Arial, sans-serif;
-            background: #f5f5f7;
-            color: #202124;
-          }
-          main {
-            max-width: 680px;
-            margin: 24px;
-            padding: 32px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 8px 30px rgba(0,0,0,.08);
-          }
-          h1 { margin-top: 0; }
-          code {
-            padding: 3px 6px;
-            border-radius: 5px;
-            background: #f0f0f0;
-          }
-        </style>
-      </head>
-      <body>
-        <main>
-          <h1>Radar Editorial</h1>
-          <p>Teste mínimo de compatibilidade da Hostinger.</p>
-          <p><strong>Node.js + Express funcionando.</strong></p>
-          <p>Versão: <code>0.1.0</code></p>
-        </main>
-      </body>
-    </html>
-  `);
+app.use(express.json({ limit: "1mb" }));
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || "127.0.0.1",
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "radar_editorial",
+  waitForConnections: true,
+  connectionLimit: 5,
+  queueLimit: 0,
+  charset: "utf8mb4",
 });
 
-app.get("/api/health", (_req, res) => {
-  res.status(200).json({
-    ok: true,
-    service: "radar-hostinger-test",
-    framework: "express",
-    node: process.version
-  });
+app.get("/api/health", async (_req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT 1 AS ok");
+    res.json({
+      ok: rows[0]?.ok === 1,
+      service: "radar-editorial",
+      framework: "express",
+      node: process.version,
+      database: "mysql",
+    });
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      service: "radar-editorial",
+      framework: "express",
+      node: process.version,
+      database: "mysql",
+      error: "database_unavailable",
+    });
+  }
+});
+
+app.get("/api/investigations", async (_req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT id, title, status, created_at, updated_at
+      FROM investigations
+      ORDER BY created_at DESC
+      LIMIT 50
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "failed_to_list_investigations" });
+  }
+});
+
+app.post("/api/investigations", async (req, res) => {
+  const title = String(req.body?.title || "").trim();
+
+  if (!title) {
+    return res.status(400).json({ error: "title_required" });
+  }
+
+  if (title.length > 500) {
+    return res.status(400).json({ error: "title_too_long" });
+  }
+
+  try {
+    const [result] = await pool.execute(
+      `INSERT INTO investigations (title, status) VALUES (?, 'created')`,
+      [title]
+    );
+
+    const [rows] = await pool.execute(
+      `SELECT id, title, status, created_at, updated_at
+       FROM investigations WHERE id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "failed_to_create_investigation" });
+  }
+});
+
+app.get("/api/investigations/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: "invalid_id" });
+  }
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, title, status, created_at, updated_at
+       FROM investigations WHERE id = ?`,
+      [id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: "investigation_not_found" });
+    }
+
+    res.json(rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "failed_to_get_investigation" });
+  }
+});
+
+const distPath = path.join(__dirname, "dist");
+app.use(express.static(distPath));
+
+app.get("/{*splat}", (_req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
 });
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`Radar Hostinger Test running on port ${port}`);
+  console.log(`Radar Editorial running on port ${port}`);
 });

@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const maxResults = Math.min(Math.max(Number(process.env.SEARCH_MAX_RESULTS || 15), 1), 20);
-const appVersion = '0.2.4';
+const appVersion = '0.3.0';
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -182,6 +182,101 @@ function confidenceForSource({ quality, authority, recency }) {
   return { score: rounded, level };
 }
 
+
+function normalizedText(text) {
+  return tokens(text).sort().join(' ');
+}
+
+function jaccardSimilarity(a, b) {
+  const A = new Set(tokens(a));
+  const B = new Set(tokens(b));
+  if (!A.size || !B.size) return 0;
+  let intersection = 0;
+  for (const token of A) if (B.has(token)) intersection++;
+  const union = new Set([...A, ...B]).size;
+  return union ? intersection / union : 0;
+}
+
+function sourceSimilarity(a, b) {
+  const titleScore = jaccardSimilarity(a.title, b.title);
+  const contentScore = jaccardSimilarity(`${a.title} ${a.summary || ''}`, `${b.title} ${b.summary || ''}`);
+  return 0.60 * titleScore + 0.40 * contentScore;
+}
+
+async function analyzeSourceRelations(investigationId) {
+  const [sources] = await pool.query(
+    `SELECT id, title, url, domain, summary FROM sources WHERE investigation_id = ? ORDER BY id ASC`,
+    [investigationId]
+  );
+
+  let duplicatePairs = 0;
+  let relatedPairs = 0;
+  const duplicateIds = new Set();
+  const groups = [];
+
+  // Rebuild relations for this investigation so the result remains deterministic.
+  if (sources.length > 1) {
+    const ids = sources.map(s => s.id);
+    const placeholders = ids.map(() => '?').join(',');
+    await pool.query(
+      `DELETE sr FROM source_relations sr
+       INNER JOIN sources s ON s.id = sr.source_id
+       WHERE s.investigation_id = ? AND sr.relation_type IN ('duplicate','related')`,
+      [investigationId]
+    );
+
+    for (let i = 0; i < sources.length; i++) {
+      for (let j = i + 1; j < sources.length; j++) {
+        const a = sources[i];
+        const b = sources[j];
+        const urlA = normalizeUrl(a.url);
+        const urlB = normalizeUrl(b.url);
+        const sameUrl = urlA && urlB && urlA === urlB;
+        const similarity = sameUrl ? 1 : sourceSimilarity(a, b);
+        let relationType = null;
+        if (sameUrl || similarity >= 0.90) relationType = 'duplicate';
+        else if (similarity >= 0.62) relationType = 'related';
+        if (!relationType) continue;
+
+        await pool.query(
+          `INSERT IGNORE INTO source_relations (source_id, related_source_id, relation_type, score) VALUES (?,?,?,?)`,
+          [a.id, b.id, relationType, Number(similarity.toFixed(4))]
+        );
+        if (relationType === 'duplicate') {
+          duplicatePairs++;
+          duplicateIds.add(b.id);
+        } else {
+          relatedPairs++;
+        }
+      }
+    }
+  }
+
+  // Build connected groups of related/duplicate sources for display.
+  const [relations] = await pool.query(
+    `SELECT sr.source_id, sr.related_source_id, sr.relation_type, sr.score
+     FROM source_relations sr
+     INNER JOIN sources s ON s.id = sr.source_id
+     WHERE s.investigation_id = ? AND sr.relation_type IN ('duplicate','related')`,
+    [investigationId]
+  );
+  const parent = new Map(sources.map(s => [s.id, s.id]));
+  function find(x) {
+    let r = x;
+    while (parent.get(r) !== r) r = parent.get(r);
+    while (parent.get(x) !== x) { const n = parent.get(x); parent.set(x, r); x = n; }
+    return r;
+  }
+  function union(a,b) { const ra=find(a), rb=find(b); if (ra!==rb) parent.set(rb,ra); }
+  for (const r of relations) union(r.source_id, r.related_source_id);
+  const groupMap = new Map();
+  for (const src of sources) { const root=find(src.id); if(!groupMap.has(root)) groupMap.set(root,[]); groupMap.get(root).push(src.id); }
+  let groupNumber = 0;
+  for (const members of groupMap.values()) if (members.length > 1) groups.push({ id: ++groupNumber, source_ids: members });
+
+  return { duplicate_pairs: duplicatePairs, duplicate_sources: duplicateIds.size, related_pairs: relatedPairs, groups };
+}
+
 function scoreSource({ title, objective, sourceTitle, summary, domain, url, relevance, publishedAt }) {
   const type = classifySource(domain, url);
   const quality = qualityForType(type);
@@ -226,7 +321,18 @@ async function getRankedSources(investigationId, title, objective) {
      FROM sources WHERE investigation_id = ?`,
     [investigationId]
   );
-
+  const [relations] = await pool.query(
+    `SELECT source_id, related_source_id, relation_type, score
+     FROM source_relations sr
+     INNER JOIN sources s ON s.id = sr.source_id
+     WHERE s.investigation_id = ? AND relation_type IN ('duplicate','related')`,
+    [investigationId]
+  );
+  const relationBySource = new Map();
+  for (const r of relations) {
+    if (!relationBySource.has(r.source_id)) relationBySource.set(r.source_id, []);
+    relationBySource.get(r.source_id).push({ id: r.related_source_id, type: r.relation_type, score: Number(r.score || 0) });
+  }
   return sources.map(source => {
     const quality = Number(source.quality_score ?? qualityForType(source.source_type));
     const authority = Number(source.authority_score ?? authorityForDomain(source.domain, source.source_type));
@@ -234,6 +340,7 @@ async function getRankedSources(investigationId, title, objective) {
     const recency = recencyInfo(effectivePublishedAt);
     const correspondence = correspondenceScore(title, objective, source.title, source.summary);
     const relevance = Number(source.relevance_score ?? 0.5);
+    const confidence = confidenceForSource({ quality, authority, recency: recency.score });
     return {
       ...source,
       published_at: effectivePublishedAt,
@@ -245,8 +352,9 @@ async function getRankedSources(investigationId, title, objective) {
       recency_year: recency.year,
       correspondence_score: correspondence,
       ranking_score: editorialRank({ relevance, quality, recency: recency.score, authority, correspondence }),
-      confidence_score: confidenceForSource({ quality, authority, recency: recency.score }).score,
-      confidence_level: confidenceForSource({ quality, authority, recency: recency.score }).level
+      confidence_score: confidence.score,
+      confidence_level: confidence.level,
+      relations: relationBySource.get(source.id) || []
     };
   }).sort((a, b) => b.ranking_score - a.ranking_score || b.id - a.id).slice(0, 50);
 }
@@ -394,10 +502,11 @@ app.get('/api/investigations/:id', async (req,res) => {
     const [[investigation]]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[req.params.id]);
     if(!investigation) return res.status(404).json({error:'Investigação não encontrada.'});
     await scoreInvestigationSources(investigation.id, investigation.title, investigation.objective);
+    const relationsSummary = await analyzeSourceRelations(investigation.id);
     const [[counts]]=await pool.query(`SELECT (SELECT COUNT(*) FROM sources WHERE investigation_id=?) AS sources, 0 AS evidence, 0 AS gaps`,[req.params.id]);
     const [jobs]=await pool.query(`SELECT id,status,job_type,payload,created_at,started_at,finished_at,error_message FROM research_jobs WHERE investigation_id=? ORDER BY id DESC LIMIT 1`,[req.params.id]);
     const sources=await getRankedSources(investigation.id,investigation.title,investigation.objective);
-    res.json({...investigation,counts,latest_job:jobs[0]||null,sources,ranking:{relevance:0.30,quality:0.25,authority:0.20,recency:0.15,correspondence:0.10}});
+    res.json({...investigation,counts,latest_job:jobs[0]||null,sources,relations:relationsSummary,ranking:{relevance:0.30,quality:0.25,authority:0.20,recency:0.15,correspondence:0.10}});
   } catch(error){ res.status(500).json({error:error.message}); }
 });
 

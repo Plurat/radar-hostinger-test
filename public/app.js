@@ -1,3 +1,5 @@
+let currentUser=null;
+async function ensureAuthenticated(){const r=await fetch('/api/auth/me',{cache:'no-store'});if(r.status===401){location.href='/login';return false}if(!r.ok)throw new Error('Não foi possível validar a sessão.');const d=await r.json();currentUser=d.user;const n=document.getElementById('account-name');if(n)n.textContent=currentUser.name||currentUser.email;const l=document.getElementById('admin-link');if(l&&currentUser.role==='admin')l.classList.remove('hidden');const b=document.getElementById('logout-button');if(b)b.onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/login'};return true}
 const form = document.getElementById('investigation-form');
 const titleInput = document.getElementById('title');
 const objectiveInput = document.getElementById('objective');
@@ -313,4 +315,4 @@ startResearchButton.addEventListener('click', startResearch);
 if (startAnalysisButton) startAnalysisButton.addEventListener('click', startAnalysis);
 
 updateCounter();
-loadInvestigations();
+ensureAuthenticated().then(ok=>{if(ok)loadInvestigations()}).catch(()=>location.href="/login");

@@ -33,8 +33,9 @@ label{display:block;margin:16px 0 7px;font-weight:750;font-size:14px}label span{
 </style>
 </head>
 <body>
+<div class="account-bar"><span id="account-name"></span><div><a id="admin-link" class="account-link hidden" href="/admin">Administração</a><button id="logout-button" class="link-button" type="button">Sair</button></div></div>
 <main class="container">
-<header class="hero"><div class="eyebrow">INTELIGÊNCIA EDITORIAL</div><div class="title-row"><div class="title-wrap"><h1>Radar Editorial</h1><p class="subtitle">Web 0.4.0 · MVP</p></div><div class="badges"><span class="badge">WEB 0.4.0</span><span class="badge">MVP</span></div></div></header>
+<header class="hero"><div class="eyebrow">INTELIGÊNCIA EDITORIAL</div><div class="title-row"><div class="title-wrap"><h1>Radar Editorial</h1><p class="subtitle">Web 0.5.0 · MVP</p></div><div class="badges"><span class="badge">WEB 0.4.0</span><span class="badge">MVP</span></div></div></header>
 <section id="home-view">
 <section class="card"><h2>O que você quer investigar?</h2><p class="intro-text">Crie uma investigação para organizar pesquisa, fontes, evidências e análise.</p><form id="investigation-form"><label for="title">Tema da investigação</label><input id="title" name="title" type="text" maxlength="500" required autocomplete="off" placeholder="Ex.: Ansiedade e uso de redes sociais"><div class="counter" id="counter">0/500</div><label for="objective">Objetivo <span>(opcional)</span></label><textarea id="objective" name="objective" rows="4" maxlength="2000" placeholder="O que você quer descobrir, atualizar ou comparar?"></textarea><div class="form-actions"><button id="submit-button" type="submit">Criar investigação</button><div id="message" class="message" aria-live="polite"></div></div></form></section>
 <section class="card history-card"><div class="section-heading"><div><div class="eyebrow">HISTÓRICO</div><h3>Investigações</h3></div><button id="refresh-button" class="secondary" type="button">Atualizar</button></div><div id="investigation-list" class="investigation-list"></div></section>
@@ -47,6 +48,6 @@ label{display:block;margin:16px 0 7px;font-weight:750;font-size:14px}label span{
 <section class="card"><div id="dedup-summary" class="dedup-summary"></div><div class="section-heading"><div><div class="eyebrow">FONTES ENCONTRADAS</div><h3>Fontes</h3></div></div><p class="section-note">Ranking editorial: relevância 30% · qualidade 25% · autoridade 20% · recência 15% · correspondência 10%. Quando um dado não é identificado com confiança, seu peso é redistribuído entre os critérios disponíveis.</p><div id="sources-area" class="sources-list"><div class="empty">Nenhuma fonte armazenada ainda.</div></div></section>
 </section>
 </main>
-<script src="/app.js?v=0.4.0" defer></script>
+<script src="/app.js?v=0.5.0" defer></script>
 </body>
 </html>

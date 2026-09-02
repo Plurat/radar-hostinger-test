@@ -10,7 +10,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const maxResults = Math.min(Math.max(Number(process.env.SEARCH_MAX_RESULTS || 15), 1), 20);
-const appVersion = '0.3.0';
+const appVersion = '0.4.0';
+const openAiModel = String(process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim();
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -407,6 +408,207 @@ function buildSearchQueries(title, objective) {
   return [...new Set(queries)];
 }
 
+
+async function ensureAnalysisSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS source_analyses (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      investigation_id BIGINT UNSIGNED NOT NULL,
+      source_id BIGINT UNSIGNED NOT NULL,
+      model VARCHAR(128) NULL,
+      analysis JSON NOT NULL,
+      created_at DATETIME NOT NULL,
+      updated_at DATETIME NOT NULL,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_source_analysis (investigation_id, source_id),
+      KEY idx_source_analyses_investigation (investigation_id),
+      CONSTRAINT fk_sa_investigation FOREIGN KEY (investigation_id) REFERENCES investigations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_sa_source FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
+function extractResponseText(data) {
+  if (typeof data?.output_text === 'string' && data.output_text.trim()) return data.output_text.trim();
+  const chunks = [];
+  for (const item of Array.isArray(data?.output) ? data.output : []) {
+    for (const content of Array.isArray(item?.content) ? item.content : []) {
+      if (typeof content?.text === 'string') chunks.push(content.text);
+    }
+  }
+  return chunks.join('\n').trim();
+}
+
+async function openAiAnalyzeSources(investigation, sources) {
+  const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  if (!apiKey) {
+    const error = new Error('A análise por IA ainda não está configurada: OPENAI_API_KEY ausente.');
+    error.code = 'AI_NOT_CONFIGURED';
+    error.status = 503;
+    throw error;
+  }
+
+  const sourceInput = sources.map(source => ({
+    source_id: Number(source.id),
+    title: String(source.title || '').slice(0, 2000),
+    domain: String(source.domain || ''),
+    source_type: String(source.source_type || ''),
+    published_at: source.published_at || null,
+    summary: String(source.summary || '').slice(0, 5000),
+    url: String(source.url || '').slice(0, 2000)
+  }));
+
+  const schema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      sources: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            source_id: { type: 'integer' },
+            editorial_summary: { type: 'string' },
+            key_points: { type: 'array', items: { type: 'string' } },
+            evidence: { type: 'array', items: { type: 'string' } },
+            gaps: { type: 'array', items: { type: 'string' } },
+            editorial_relevance: { type: 'string' }
+          },
+          required: ['source_id','editorial_summary','key_points','evidence','gaps','editorial_relevance']
+        }
+      }
+    },
+    required: ['sources']
+  };
+
+  const body = {
+    model: openAiModel,
+    input: [
+      {
+        role: 'system',
+        content: [{
+          type: 'input_text',
+          text: `Você é o analista editorial do Radar Editorial. Analise as fontes fornecidas para a investigação.\n\nREGRAS: use somente as informações presentes nos metadados e resumos fornecidos; não invente resultados, números, autores ou conclusões. Se o material for insuficiente para afirmar algo, diga isso explicitamente. Diferencie evidência de opinião, descrição ou alegação. Em "gaps", registre limitações ou lacunas que possam ser identificadas com segurança a partir do material disponível, sem transformar ausência de informação em uma afirmação factual. Em "editorial_relevance", explique de forma curta como a fonte pode ser útil para a investigação. Responda em português do Brasil.`
+        }]
+      },
+      {
+        role: 'user',
+        content: [{
+          type: 'input_text',
+          text: JSON.stringify({
+            investigation: { title: investigation.title, objective: investigation.objective || '' },
+            sources: sourceInput
+          })
+        }]
+      }
+    ],
+    text: { format: { type: 'json_schema', name: 'radar_source_analysis', strict: true, schema } }
+  };
+
+  const started = Date.now();
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify(body)
+  });
+  const responseText = await response.text();
+  let data = null;
+  try { data = JSON.parse(responseText); } catch (_) {}
+  if (!response.ok) {
+    const error = new Error(data?.error?.message || `OpenAI respondeu com HTTP ${response.status}.`);
+    error.status = response.status;
+    error.code = data?.error?.code || 'OPENAI_HTTP_ERROR';
+    throw error;
+  }
+  const text = extractResponseText(data);
+  if (!text) {
+    const error = new Error('A IA respondeu sem conteúdo de análise.');
+    error.code = 'AI_EMPTY';
+    throw error;
+  }
+  let parsed;
+  try { parsed = JSON.parse(text); }
+  catch (_) {
+    const error = new Error('A resposta da IA não pôde ser interpretada como JSON.');
+    error.code = 'AI_INVALID_JSON';
+    throw error;
+  }
+  return {
+    parsed,
+    diagnostics: {
+      model: openAiModel,
+      response_time_ms: Date.now() - started,
+      request_id: data?.id || null,
+      input_tokens: data?.usage?.input_tokens ?? data?.usage?.prompt_tokens ?? null,
+      output_tokens: data?.usage?.output_tokens ?? data?.usage?.completion_tokens ?? null
+    }
+  };
+}
+
+async function runAnalysisJob(jobId) {
+  let investigationId = null;
+  try {
+    const [[job]] = await pool.query(
+      `SELECT rj.id, rj.investigation_id, rj.status, i.title, i.objective
+       FROM research_jobs rj INNER JOIN investigations i ON i.id = rj.investigation_id WHERE rj.id = ?`, [jobId]
+    );
+    if (!job || job.status !== 'queued') return;
+    investigationId = job.investigation_id;
+    await pool.query(`UPDATE research_jobs SET status='running', started_at=NOW(), error_message=NULL WHERE id=? AND status='queued'`, [jobId]);
+
+    const [sources] = await pool.query(
+      `SELECT id,title,url,domain,source_type,published_at,summary FROM sources WHERE investigation_id=? ORDER BY id ASC`,
+      [investigationId]
+    );
+    if (!sources.length) {
+      const error = new Error('Não há fontes armazenadas para analisar. Execute uma pesquisa Web primeiro.');
+      error.code = 'NO_SOURCES';
+      throw error;
+    }
+
+    const result = await openAiAnalyzeSources(job, sources);
+    const returned = Array.isArray(result.parsed?.sources) ? result.parsed.sources : [];
+    const byId = new Map(sources.map(s => [Number(s.id), s]));
+    let saved = 0;
+    let evidenceCount = 0;
+    let gapCount = 0;
+
+    for (const item of returned) {
+      const source = byId.get(Number(item.source_id));
+      if (!source) continue;
+      const analysis = {
+        editorial_summary: String(item.editorial_summary || '').trim(),
+        key_points: Array.isArray(item.key_points) ? item.key_points.map(x => String(x).trim()).filter(Boolean).slice(0,8) : [],
+        evidence: Array.isArray(item.evidence) ? item.evidence.map(x => String(x).trim()).filter(Boolean).slice(0,8) : [],
+        gaps: Array.isArray(item.gaps) ? item.gaps.map(x => String(x).trim()).filter(Boolean).slice(0,8) : [],
+        editorial_relevance: String(item.editorial_relevance || '').trim()
+      };
+      evidenceCount += analysis.evidence.length;
+      gapCount += analysis.gaps.length;
+      await pool.query(
+        `INSERT INTO source_analyses (investigation_id,source_id,model,analysis,created_at,updated_at)
+         VALUES (?,?,?,?,NOW(),NOW())
+         ON DUPLICATE KEY UPDATE model=VALUES(model), analysis=VALUES(analysis), updated_at=NOW()`,
+        [investigationId, source.id, openAiModel, JSON.stringify(analysis)]
+      );
+      saved++;
+    }
+
+    if (!saved) throw Object.assign(new Error('A IA não retornou análises válidas para as fontes.'), { code: 'AI_NO_SOURCE_ANALYSIS' });
+    const payload = JSON.stringify({ provider:'openai', model:openAiModel, sources_received:sources.length, sources_analyzed:saved,
+      evidence:evidenceCount, gaps:gapCount, response_time_ms:result.diagnostics.response_time_ms,
+      request_id:result.diagnostics.request_id, input_tokens:result.diagnostics.input_tokens, output_tokens:result.diagnostics.output_tokens, outcome:'success' });
+    await pool.query(`UPDATE research_jobs SET status='completed',finished_at=NOW(),payload=? WHERE id=?`, [payload, jobId]);
+    await pool.query(`UPDATE investigations SET updated_at=NOW() WHERE id=?`, [investigationId]);
+  } catch (error) {
+    console.error(`Analysis job ${jobId} failed:`, error);
+    const payload = JSON.stringify({ provider:'openai', model:openAiModel, outcome:'error', error_code:error.code||null, http_status:error.status||null });
+    await pool.query(`UPDATE research_jobs SET status='failed',finished_at=NOW(),error_message=?,payload=? WHERE id=?`,
+      [String(error.message||error).slice(0,10000), payload, jobId]).catch(()=>{});
+  }
+}
+
 async function runResearchJob(jobId) {
   let investigationId = null;
   try {
@@ -503,10 +705,16 @@ app.get('/api/investigations/:id', async (req,res) => {
     if(!investigation) return res.status(404).json({error:'Investigação não encontrada.'});
     await scoreInvestigationSources(investigation.id, investigation.title, investigation.objective);
     const relationsSummary = await analyzeSourceRelations(investigation.id);
-    const [[counts]]=await pool.query(`SELECT (SELECT COUNT(*) FROM sources WHERE investigation_id=?) AS sources, 0 AS evidence, 0 AS gaps`,[req.params.id]);
-    const [jobs]=await pool.query(`SELECT id,status,job_type,payload,created_at,started_at,finished_at,error_message FROM research_jobs WHERE investigation_id=? ORDER BY id DESC LIMIT 1`,[req.params.id]);
+    const [[counts]]=await pool.query(`SELECT (SELECT COUNT(*) FROM sources WHERE investigation_id=?) AS sources,
+      (SELECT COALESCE(SUM(JSON_LENGTH(JSON_EXTRACT(sa.analysis,'$.evidence'))),0) FROM source_analyses sa WHERE sa.investigation_id=?) AS evidence,
+      (SELECT COALESCE(SUM(JSON_LENGTH(JSON_EXTRACT(sa.analysis,'$.gaps'))),0) FROM source_analyses sa WHERE sa.investigation_id=?) AS gaps`,[req.params.id,req.params.id,req.params.id]);
+    const [researchJobs]=await pool.query(`SELECT id,status,job_type,payload,created_at,started_at,finished_at,error_message FROM research_jobs WHERE investigation_id=? AND job_type='research' ORDER BY id DESC LIMIT 1`,[req.params.id]);
+    const [analysisJobs]=await pool.query(`SELECT id,status,job_type,payload,created_at,started_at,finished_at,error_message FROM research_jobs WHERE investigation_id=? AND job_type='analysis' ORDER BY id DESC LIMIT 1`,[req.params.id]);
+    const [analysisRows]=await pool.query(`SELECT source_id,model,analysis,updated_at FROM source_analyses WHERE investigation_id=?`,[req.params.id]);
+    const analyses = Object.fromEntries(analysisRows.map(row => [String(row.source_id), typeof row.analysis === 'string' ? JSON.parse(row.analysis) : row.analysis]));
     const sources=await getRankedSources(investigation.id,investigation.title,investigation.objective);
-    res.json({...investigation,counts,latest_job:jobs[0]||null,sources,relations:relationsSummary,ranking:{relevance:0.30,quality:0.25,authority:0.20,recency:0.15,correspondence:0.10}});
+    const analysisSummary={sources_analyzed:analysisRows.length,evidence:Number(counts.evidence||0),gaps:Number(counts.gaps||0),model:analysisRows[0]?.model||openAiModel};
+    res.json({...investigation,counts,latest_job:researchJobs[0]||null,latest_analysis_job:analysisJobs[0]||null,sources,analyses,analysis_summary:analysisSummary,relations:relationsSummary,ranking:{relevance:0.30,quality:0.25,authority:0.20,recency:0.15,correspondence:0.10}});
   } catch(error){ res.status(500).json({error:error.message}); }
 });
 
@@ -525,7 +733,27 @@ app.post('/api/investigations/:id/jobs', async (req,res) => {
   } catch(error){ res.status(500).json({error:error.message}); }
 });
 
+
+app.post('/api/investigations/:id/analyses', async (req,res) => {
+  const investigationId=Number(req.params.id);
+  if(!Number.isInteger(investigationId)||investigationId<1) return res.status(400).json({error:'ID de investigação inválido.'});
+  try {
+    if(!String(process.env.OPENAI_API_KEY||'').trim()) return res.status(503).json({error:'A análise por IA ainda não está configurada: OPENAI_API_KEY ausente.'});
+    const [[investigation]]=await pool.query(`SELECT id,title,objective,status,created_at,updated_at FROM investigations WHERE id=?`,[investigationId]);
+    if(!investigation) return res.status(404).json({error:'Investigação não encontrada.'});
+    const [[sourceCount]] = await pool.query(`SELECT COUNT(*) AS total FROM sources WHERE investigation_id=?`,[investigationId]);
+    if(Number(sourceCount.total||0)<1) return res.status(409).json({error:'Nenhuma fonte disponível. Execute uma pesquisa Web antes da análise.'});
+    const [activeJobs]=await pool.query(`SELECT id,status FROM research_jobs WHERE investigation_id=? AND status IN('queued','running') ORDER BY id DESC LIMIT 1`,[investigationId]);
+    if(activeJobs.length) return res.status(409).json({error:'Já existe uma pesquisa ou análise na fila/em execução.'});
+    const [result]=await pool.query(`INSERT INTO research_jobs(investigation_id,status,job_type,payload,created_at) VALUES(?,'queued','analysis',?,NOW())`,[investigationId,JSON.stringify({provider:'openai',model:openAiModel})]);
+    const [[job]]=await pool.query(`SELECT id,status,job_type,payload,created_at,started_at,finished_at,error_message FROM research_jobs WHERE id=?`,[result.insertId]);
+    res.status(201).json({investigation:{...investigation,latest_analysis_job:job}}); void runAnalysisJob(result.insertId);
+  } catch(error){ res.status(500).json({error:error.message}); }
+});
+
 const publicPath=path.join(__dirname,'public');
 app.use(express.static(publicPath,{etag:false,maxAge:0,setHeaders:(res,filePath)=>{if(filePath.endsWith('.css')||filePath.endsWith('.js'))res.setHeader('Cache-Control','no-store');}}));
 app.get(/^(?!\/api(?:\/|$)).*/,(_req,res)=>res.sendFile(path.join(publicPath,'index.html')));
-app.listen(port,'0.0.0.0',()=>console.log(`Radar Editorial ${appVersion} running on port ${port}`));
+ensureAnalysisSchema().then(() => {
+  app.listen(port,'0.0.0.0',()=>console.log(`Radar Editorial ${appVersion} running on port ${port}`));
+}).catch(error => { console.error('Falha ao preparar o schema de análise:', error); process.exit(1); });

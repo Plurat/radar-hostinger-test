@@ -1,18 +1,18 @@
-# Hostinger — Radar Editorial 0.2.3
+# Radar Editorial 0.4.0 — Hostinger Express
 
-Deploy as the existing Express Node.js application. Keep Node 22.x and the existing DB/Tavily environment variables.
+Configuração atual:
+- Framework: Express
+- Node: 22.x
+- Entry file: `server.js`
+- Root: `/`
+- Frontend estático em `public/`
 
-No database recreation or SQL import is required.
+## Variáveis
+Mantenha as variáveis existentes de banco e Tavily. Para análise por IA, adicione na Hostinger:
 
-## Ranking refinado
-- Relevância: 30%
-- Qualidade: 25%
-- Autoridade: 20%
-- Recência: 15%
-- Correspondência: 10%
+- `OPENAI_API_KEY` — chave da API da OpenAI
+- `OPENAI_MODEL` — opcional; padrão `gpt-5.6-luna`
 
-## Confiança
-A confiança é calculada separadamente do ranking, combinando qualidade (50%), autoridade (35%) e recência (15%).
-- Alta: >= 80
-- Média: 60–79
-- Baixa: < 60
+A aplicação cria automaticamente a tabela `source_analyses` na primeira inicialização da 0.4.0.
+
+Não execute novamente o schema SQL no phpMyAdmin.

@@ -122,6 +122,18 @@ function authorityForDomain(domain, type) {
   return 0.50;
 }
 
+function publishedDateFromRaw(rawData) {
+  if (!rawData) return null;
+  try {
+    const item = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+    const value = item?.published_date || item?.published_at || item?.date || null;
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.toISOString().slice(0,19).replace('T',' ');
+  } catch (_) { return null; }
+}
+
 function recencyInfo(publishedAt) {
   if (!publishedAt) return { score: null, label: 'não identificada', year: null };
   const date = new Date(publishedAt);
@@ -209,7 +221,7 @@ async function scoreInvestigationSources(investigationId, title, objective) {
 
 async function getRankedSources(investigationId, title, objective) {
   const [sources] = await pool.query(
-    `SELECT id, title, url, domain, source_type, published_at, summary,
+    `SELECT id, title, url, domain, source_type, published_at, raw_data, summary,
             relevance_score, quality_score, authority_score, created_at
      FROM sources WHERE investigation_id = ?`,
     [investigationId]
@@ -218,11 +230,13 @@ async function getRankedSources(investigationId, title, objective) {
   return sources.map(source => {
     const quality = Number(source.quality_score ?? qualityForType(source.source_type));
     const authority = Number(source.authority_score ?? authorityForDomain(source.domain, source.source_type));
-    const recency = recencyInfo(source.published_at);
+    const effectivePublishedAt = source.published_at || publishedDateFromRaw(source.raw_data);
+    const recency = recencyInfo(effectivePublishedAt);
     const correspondence = correspondenceScore(title, objective, source.title, source.summary);
     const relevance = Number(source.relevance_score ?? 0.5);
     return {
       ...source,
+      published_at: effectivePublishedAt,
       relevance_score: source.relevance_score == null ? null : Number(source.relevance_score),
       quality_score: quality,
       authority_score: authority,

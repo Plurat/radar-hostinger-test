@@ -14,6 +14,9 @@ const detailStatus = document.getElementById('detail-status');
 const detailMeta = document.getElementById('detail-meta');
 const detailObjective = document.getElementById('detail-objective');
 const startResearchButton = document.getElementById('start-research-button');
+const startAnalysisButton = document.getElementById('start-analysis-button');
+const analysisArea = document.getElementById('analysis-area');
+const analysisNote = document.getElementById('analysis-note');
 const jobArea = document.getElementById('job-area');
 const sourcesArea = document.getElementById('sources-area');
 const sourcesCount = document.getElementById('sources-count');
@@ -96,7 +99,7 @@ async function refreshDetail() {
   if (!response.ok) throw new Error(data.error || 'Não foi possível carregar a investigação.');
   renderDetail(data);
 
-  if (['queued', 'running'].includes(data.latest_job?.status)) startPolling();
+  if (['queued', 'running'].includes(data.latest_job?.status) || ['queued', 'running'].includes(data.latest_analysis_job?.status)) startPolling();
   else stopPolling();
 }
 
@@ -109,7 +112,8 @@ function renderDetail(data) {
   evidenceCount.textContent = data.counts?.evidence ?? 0;
   gapsCount.textContent = data.counts?.gaps ?? 0;
   renderJob(data.latest_job);
-  renderSources(data.sources || []);
+  renderAnalysisJob(data.latest_analysis_job, data.analysis_summary);
+  renderSources(data.sources || [], data.analyses || {});
   renderDedupSummary(data.relations, data.counts?.sources || 0);
 
   const jobStatus = data.latest_job?.status;
@@ -154,6 +158,31 @@ function renderJob(job) {
   `;
 }
 
+
+function renderAnalysisJob(job, summary) {
+  if (!analysisArea) return;
+  if (!job) {
+    analysisArea.innerHTML = '<div class="job-empty">Nenhuma análise foi executada nesta investigação.</div>';
+  } else {
+    let payload = null;
+    try { payload = job.payload ? JSON.parse(job.payload) : null; } catch {}
+    const detail = payload?.sources_analyzed != null
+      ? `${payload.sources_analyzed} fontes analisadas · ${payload.evidence || 0} evidências · ${payload.gaps || 0} lacunas`
+      : payload?.model ? `Modelo: ${escapeHtml(payload.model)}` : '';
+    analysisArea.innerHTML = `<div class="job-row"><div class="job-main"><strong>Análise #${escapeHtml(job.id)}</strong><span>${escapeHtml(job.job_type)}${detail ? ` · ${detail}` : ''}</span></div><span class="status">${escapeHtml(job.status)}</span></div><small>Criado em ${escapeHtml(formatDate(job.created_at))}${job.finished_at ? ` · Finalizado em ${escapeHtml(formatDate(job.finished_at))}` : ''}</small>${job.error_message ? `<p class="error">${escapeHtml(job.error_message)}</p>` : ''}`;
+  }
+  const active = ['queued','running'].includes(job?.status);
+  if (startAnalysisButton) {
+    startAnalysisButton.disabled = active;
+    startAnalysisButton.textContent = job?.status === 'running' ? 'Analisando...' : job?.status === 'queued' ? 'Análise na fila' : 'Analisar fontes';
+  }
+  if (analysisNote) {
+    if (job?.status === 'completed') analysisNote.textContent = `Análise concluída. ${summary?.sources_analyzed || 0} fontes foram analisadas com base nos dados coletados.`;
+    else if (job?.status === 'failed') analysisNote.textContent = job.error_message || 'A análise falhou. Verifique a configuração da IA.';
+    else analysisNote.textContent = 'O Radar analisa os dados coletados das fontes e separa pontos-chave, evidências e lacunas sem gerar o artigo.';
+  }
+}
+
 function sourceTypeLabel(type) {
   const labels = { academic: 'Acadêmica', institutional: 'Institucional', journalistic: 'Jornalística', editorial: 'Editorial', social: 'Social', commercial: 'Comercial', web: 'Web' };
   return labels[type] || 'Web';
@@ -173,7 +202,14 @@ function renderDedupSummary(relations, total) {
     : '';
 }
 
-function renderSources(sources) {
+
+function renderSourceAnalysis(analysis) {
+  if (!analysis) return '';
+  const list = (items) => Array.isArray(items) && items.length ? `<ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p class="analysis-none">Nenhum item identificado com segurança.</p>';
+  return `<div class="source-analysis"><div class="analysis-label">ANÁLISE DA FONTE</div><p class="analysis-summary">${escapeHtml(analysis.editorial_summary || '')}</p><div class="analysis-columns"><div><strong>Pontos-chave</strong>${list(analysis.key_points)}</div><div><strong>Evidências</strong>${list(analysis.evidence)}</div><div><strong>Lacunas</strong>${list(analysis.gaps)}</div></div><div class="analysis-relevance"><strong>Relevância editorial:</strong> ${escapeHtml(analysis.editorial_relevance || '—')}</div></div>`;
+}
+
+function renderSources(sources, analyses = {}) {
   if (!sources.length) {
     sourcesArea.innerHTML = '<div class="empty">Nenhuma fonte armazenada ainda.</div>';
     return;
@@ -193,6 +229,7 @@ function renderSources(sources) {
       <div class="score-breakdown"><span>Relevância ${escapeHtml((Number(source.relevance_score || 0) * 100).toFixed(0))}</span><span>Qualidade ${escapeHtml((Number(source.quality_score || 0) * 100).toFixed(0))}</span><span>Autoridade ${escapeHtml((Number(source.authority_score || 0) * 100).toFixed(0))}</span><span>Recência ${source.recency_score == null ? 'não identificada' : `${escapeHtml(source.recency_label || 'data disponível')} · ${escapeHtml((Number(source.recency_score) * 100).toFixed(0))}`}</span><span>Correspondência ${escapeHtml((Number(source.correspondence_score || 0) * 100).toFixed(0))}</span></div>
       ${source.summary ? `<p>${escapeHtml(source.summary)}</p>` : ''}
       ${relationNote}
+      ${renderSourceAnalysis(analyses[String(source.id)])}
       <div class="source-meta"><strong>${source.published_at ? `Data de publicação: ${escapeHtml(formatDate(source.published_at))}` : 'Data de publicação: não identificada'}</strong><span>Coletada em ${escapeHtml(formatDate(source.created_at))}</span></div>
     </article>`;
   }).join('');
@@ -228,6 +265,24 @@ async function startResearch() {
   }
 }
 
+
+async function startAnalysis() {
+  if (!currentInvestigationId) return;
+  startAnalysisButton.disabled = true;
+  startAnalysisButton.textContent = 'Criando análise...';
+  if (analysisNote) analysisNote.textContent = 'Enviando as fontes para análise...';
+  try {
+    const response = await fetch(`/api/investigations/${encodeURIComponent(currentInvestigationId)}/analyses`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({}) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Não foi possível iniciar a análise.');
+    await refreshDetail();
+  } catch (error) {
+    if (analysisNote) analysisNote.textContent = error.message;
+    startAnalysisButton.disabled = false;
+    startAnalysisButton.textContent = 'Analisar fontes';
+  }
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const title = titleInput.value.trim();
@@ -255,6 +310,7 @@ backButton.addEventListener('click', () => {
   stopPolling(); currentInvestigationId = null; detailView.classList.add('hidden'); homeView.classList.remove('hidden'); loadInvestigations();
 });
 startResearchButton.addEventListener('click', startResearch);
+if (startAnalysisButton) startAnalysisButton.addEventListener('click', startAnalysis);
 
 updateCounter();
 loadInvestigations();

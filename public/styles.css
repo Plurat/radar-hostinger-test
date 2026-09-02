@@ -165,3 +165,19 @@ button.secondary, .back-button { background: #fff; color: #344054; border: 1px s
 .source-meta{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:12px;font-size:12px;color:#667085}
 .source-meta strong{font-size:13px;color:#344054}
 .source-meta span{font-size:11px;color:#98a2b3}
+
+
+/* Radar Editorial 0.4.0 — análise das fontes */
+.action-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.source-analysis{margin:13px 0 10px;padding:13px 14px;border:1px solid #e7ebef;border-radius:10px;background:#fafbfc}
+.analysis-label{font-size:10px;letter-spacing:.12em;font-weight:800;color:#667085;margin-bottom:6px}
+.analysis-summary{margin:0 0 11px;color:#344054;font-size:13px;line-height:1.5}
+.analysis-columns{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.analysis-columns>div{min-width:0}
+.analysis-columns strong,.analysis-relevance strong{font-size:11px;color:#344054}
+.analysis-columns ul{margin:6px 0 0;padding-left:17px;color:#667085;font-size:12px;line-height:1.5}
+.analysis-columns li{margin-bottom:4px}
+.analysis-none{margin:6px 0 0;color:#98a2b3;font-size:11px}
+.analysis-relevance{margin-top:11px;padding-top:10px;border-top:1px solid #e7ebef;color:#667085;font-size:12px;line-height:1.5}
+.analysis-job-area{margin-top:12px}
+@media(max-width:700px){.action-group{width:100%;justify-content:flex-start}.analysis-columns{grid-template-columns:1fr}.source-analysis{padding:12px}}

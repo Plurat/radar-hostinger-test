@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const maxResults = Math.min(Math.max(Number(process.env.SEARCH_MAX_RESULTS || 15), 1), 20);
-const appVersion = '0.2.2';
+const appVersion = '0.2.4';
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -122,45 +122,63 @@ function authorityForDomain(domain, type) {
   return 0.50;
 }
 
-function recencyScore(publishedAt) {
-  if (!publishedAt) return 0.50;
+function recencyInfo(publishedAt) {
+  if (!publishedAt) return { score: null, label: 'não identificada', year: null };
   const date = new Date(publishedAt);
-  if (Number.isNaN(date.getTime())) return 0.50;
+  if (Number.isNaN(date.getTime())) return { score: null, label: 'não identificada', year: null };
   const days = Math.max(0, (Date.now() - date.getTime()) / 86400000);
-  if (days <= 30) return 1.00;
-  if (days <= 90) return 0.90;
-  if (days <= 365) return 0.75;
-  if (days <= 1095) return 0.55;
-  return 0.35;
+  let score;
+  if (days <= 30) score = 1.00;
+  else if (days <= 90) score = 0.90;
+  else if (days <= 365) score = 0.75;
+  else if (days <= 1095) score = 0.55;
+  else score = 0.35;
+  return { score, label: date.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'UTC' }), year: date.getUTCFullYear() };
+}
+
+function weightedAvailable(parts) {
+  const available = parts.filter(item => item.value != null && Number.isFinite(Number(item.value)) && Number(item.weight) > 0);
+  if (!available.length) return null;
+  const weightTotal = available.reduce((sum, item) => sum + Number(item.weight), 0);
+  return available.reduce((sum, item) => sum + (Number(item.weight) / weightTotal) * Number(item.value), 0);
 }
 
 function editorialRank({ relevance, quality, recency, authority, correspondence }) {
-  // Ranking editorial refinado: relevância 30%, qualidade 25%,
-  // autoridade 20%, recência 15%, correspondência 10%.
-  const score =
-    0.30 * relevance +
-    0.25 * quality +
-    0.20 * authority +
-    0.15 * recency +
-    0.10 * correspondence;
-  return Number(Math.max(0, Math.min(1, score)).toFixed(4));
+  // Pesos-base: relevância 30%, qualidade 25%, autoridade 20%, recência 15%, correspondência 10%.
+  // Quando um critério não possui dado confiável, seu peso é redistribuído proporcionalmente
+  // entre os critérios disponíveis. Assim o Radar não inventa uma pontuação de recência.
+  const score = weightedAvailable([
+    { value: relevance, weight: 0.30 },
+    { value: quality, weight: 0.25 },
+    { value: authority, weight: 0.20 },
+    { value: recency, weight: 0.15 },
+    { value: correspondence, weight: 0.10 }
+  ]);
+  return score == null ? 0 : Number(Math.max(0, Math.min(1, score)).toFixed(4));
 }
 
 function confidenceForSource({ quality, authority, recency }) {
-  const score = Number((0.50 * quality + 0.35 * authority + 0.15 * recency).toFixed(4));
-  const level = score >= 0.80 ? 'high' : score >= 0.60 ? 'medium' : 'low';
-  return { score, level };
+  // Pesos-base: qualidade 50%, autoridade 35%, recência 15%.
+  // Sem recência confiável, os pesos disponíveis são normalizados.
+  const score = weightedAvailable([
+    { value: quality, weight: 0.50 },
+    { value: authority, weight: 0.35 },
+    { value: recency, weight: 0.15 }
+  ]) ?? 0;
+  const rounded = Number(score.toFixed(4));
+  const level = rounded >= 0.80 ? 'high' : rounded >= 0.60 ? 'medium' : 'low';
+  return { score: rounded, level };
 }
 
 function scoreSource({ title, objective, sourceTitle, summary, domain, url, relevance, publishedAt }) {
   const type = classifySource(domain, url);
   const quality = qualityForType(type);
   const authority = authorityForDomain(domain, type);
-  const recency = recencyScore(publishedAt);
+  const recency = recencyInfo(publishedAt);
   const correspondence = correspondenceScore(title, objective, sourceTitle, summary);
   const rel = Number.isFinite(Number(relevance)) ? Math.max(0, Math.min(1, Number(relevance))) : 0.5;
-  const rank = editorialRank({ relevance: rel, quality, recency, authority, correspondence });
-  const confidence = confidenceForSource({ quality, authority, recency });
+  const rank = editorialRank({ relevance: rel, quality, recency: recency.score, authority, correspondence });
+  const confidence = confidenceForSource({ quality, authority, recency: recency.score });
   return { type, quality, authority, recency, correspondence, rank, confidence };
 }
 
@@ -200,7 +218,7 @@ async function getRankedSources(investigationId, title, objective) {
   return sources.map(source => {
     const quality = Number(source.quality_score ?? qualityForType(source.source_type));
     const authority = Number(source.authority_score ?? authorityForDomain(source.domain, source.source_type));
-    const recency = recencyScore(source.published_at);
+    const recency = recencyInfo(source.published_at);
     const correspondence = correspondenceScore(title, objective, source.title, source.summary);
     const relevance = Number(source.relevance_score ?? 0.5);
     return {
@@ -208,11 +226,13 @@ async function getRankedSources(investigationId, title, objective) {
       relevance_score: source.relevance_score == null ? null : Number(source.relevance_score),
       quality_score: quality,
       authority_score: authority,
-      recency_score: recency,
+      recency_score: recency.score,
+      recency_label: recency.label,
+      recency_year: recency.year,
       correspondence_score: correspondence,
-      ranking_score: editorialRank({ relevance, quality, recency, authority, correspondence }),
-      confidence_score: confidenceForSource({ quality, authority, recency }).score,
-      confidence_level: confidenceForSource({ quality, authority, recency }).level
+      ranking_score: editorialRank({ relevance, quality, recency: recency.score, authority, correspondence }),
+      confidence_score: confidenceForSource({ quality, authority, recency: recency.score }).score,
+      confidence_level: confidenceForSource({ quality, authority, recency: recency.score }).level
     };
   }).sort((a, b) => b.ranking_score - a.ranking_score || b.id - a.id).slice(0, 50);
 }

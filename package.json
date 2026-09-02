@@ -1,8 +1,8 @@
 {
   "name": "radar-editorial",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
-  "description": "Radar Editorial 0.2.3 — pesquisa Web real com Tavily + ranking editorial + confiança",
+  "description": "Radar Editorial 0.2.4 — pesquisa Web real com Tavily + ranking editorial + confiança",
   "type": "module",
   "engines": {
     "node": ">=22 <25"

@@ -157,13 +157,14 @@ function renderSources(sources) {
     sourcesArea.innerHTML = '<div class="empty">Nenhuma fonte armazenada ainda.</div>';
     return;
   }
-  sourcesArea.innerHTML = sources.map(source => `
+  sourcesArea.innerHTML = sources.map((source, index) => `
     <article class="source-card">
       <div class="source-top">
-        <div class="source-domain">${escapeHtml(source.domain || source.source_type || 'web')}</div>
-        ${source.relevance_score != null ? `<span class="source-score">Relevância ${escapeHtml(Number(source.relevance_score).toFixed(2))}</span>` : ''}
+        <div class="source-domain">${escapeHtml(source.domain || 'web')} · ${escapeHtml(source.source_type || 'web')}</div>
+        <span class="source-score">Radar ${escapeHtml((Number(source.ranking_score || 0) * 100).toFixed(0))}/100</span>
       </div>
-      <h4><a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a></h4>
+      <h4><span class="source-rank">#${index + 1}</span> <a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a></h4>
+      <div class="score-breakdown">Relevância ${escapeHtml((Number(source.relevance_score || 0) * 100).toFixed(0))} · Qualidade ${escapeHtml((Number(source.quality_score || 0) * 100).toFixed(0))} · Recência ${escapeHtml((Number(source.recency_score || 0) * 100).toFixed(0))} · Autoridade ${escapeHtml((Number(source.authority_score || 0) * 100).toFixed(0))} · Correspondência ${escapeHtml((Number(source.correspondence_score || 0) * 100).toFixed(0))}</div>
       ${source.summary ? `<p>${escapeHtml(source.summary)}</p>` : ''}
       <small>${source.published_at ? `Publicada em ${escapeHtml(formatDate(source.published_at))}` : `Coletada em ${escapeHtml(formatDate(source.created_at))}`}</small>
     </article>

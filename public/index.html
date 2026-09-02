@@ -20,7 +20,7 @@ label{display:block;margin:16px 0 7px;font-weight:750;font-size:14px}label span{
 </head>
 <body>
 <main class="container">
-<header class="hero"><div class="eyebrow">INTELIGÊNCIA EDITORIAL</div><div class="title-row"><div class="title-wrap"><h1>Radar Editorial</h1><p class="subtitle">Web 0.2.1 · MVP</p></div><div class="badges"><span class="badge">WEB 0.2.1</span><span class="badge">MVP</span></div></div></header>
+<header class="hero"><div class="eyebrow">INTELIGÊNCIA EDITORIAL</div><div class="title-row"><div class="title-wrap"><h1>Radar Editorial</h1><p class="subtitle">Web 0.2.2 · MVP</p></div><div class="badges"><span class="badge">WEB 0.2.2</span><span class="badge">MVP</span></div></div></header>
 <section id="home-view">
 <section class="card"><h2>O que você quer investigar?</h2><p class="intro-text">Crie uma investigação para organizar pesquisa, fontes, evidências e análise.</p><form id="investigation-form"><label for="title">Tema da investigação</label><input id="title" name="title" type="text" maxlength="500" required autocomplete="off" placeholder="Ex.: Ansiedade e uso de redes sociais"><div class="counter" id="counter">0/500</div><label for="objective">Objetivo <span>(opcional)</span></label><textarea id="objective" name="objective" rows="4" maxlength="2000" placeholder="O que você quer descobrir, atualizar ou comparar?"></textarea><div class="form-actions"><button id="submit-button" type="submit">Criar investigação</button><div id="message" class="message" aria-live="polite"></div></div></form></section>
 <section class="card history-card"><div class="section-heading"><div><div class="eyebrow">HISTÓRICO</div><h3>Investigações</h3></div><button id="refresh-button" class="secondary" type="button">Atualizar</button></div><div id="investigation-list" class="investigation-list"></div></section>
@@ -29,10 +29,10 @@ label{display:block;margin:16px 0 7px;font-weight:750;font-size:14px}label span{
 <button id="back-button" class="back-button" type="button">← Voltar para investigações</button>
 <section class="card detail-card"><div class="detail-top"><div><div class="eyebrow">INVESTIGAÇÃO</div><h2 id="detail-title" class="detail-title">Carregando...</h2></div><span id="detail-status" class="status">draft</span></div><div class="detail-meta" id="detail-meta"></div><div class="detail-objective"><h3>Objetivo</h3><p id="detail-objective">—</p></div></section>
 <section class="card research-card"><div class="section-heading"><div><div class="eyebrow">PESQUISA WEB</div><h3>Motor de pesquisa</h3></div><button id="start-research-button" type="button">Iniciar pesquisa</button></div><div id="job-area" class="job-area"></div><p id="research-note" class="section-note">O Radar pesquisa a Web e grava as fontes nesta investigação. A classificação por IA será adicionada em uma etapa posterior.</p></section>
-<section class="card"><div class="section-heading"><div><div class="eyebrow">FONTES ENCONTRADAS</div><h3>Fontes</h3></div></div><div id="sources-area" class="sources-list"><div class="empty">Nenhuma fonte armazenada ainda.</div></div></section>
+<section class="card"><div class="section-heading"><div><div class="eyebrow">FONTES ENCONTRADAS</div><h3>Fontes</h3></div></div><p class="section-note">Ranking editorial preliminar: relevância 40% · qualidade 25% · recência 15% · autoridade 10% · correspondência 10%.</p><div id="sources-area" class="sources-list"><div class="empty">Nenhuma fonte armazenada ainda.</div></div></section>
 <section class="metrics-grid"><article class="card metric-card"><strong id="sources-count">0</strong><span>Fontes</span></article><article class="card metric-card"><strong id="evidence-count">0</strong><span>Evidências</span></article><article class="card metric-card"><strong id="gaps-count">0</strong><span>Lacunas</span></article></section>
 </section>
 </main>
-<script src="/app.js?v=0.2.1" defer></script>
+<script src="/app.js?v=0.2.2" defer></script>
 </body>
 </html>

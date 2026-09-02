@@ -142,3 +142,5 @@ button.secondary, .back-button { background: #fff; color: #344054; border: 1px s
   .investigation-item { flex-direction: column; }
   .metrics-grid { grid-template-columns: 1fr; }
 }
+
+.source-rank{display:inline-block;margin-right:4px;color:#667085;font-size:12px;font-weight:800}.score-breakdown{margin:7px 0 9px;color:#667085;font-size:11px;line-height:1.5}.source-card{transition:border-color .15s ease}.source-card:hover{border-color:#98a2b3}

@@ -100,7 +100,79 @@ app.get('/api/investigations/:id', async (req, res) => {
       return res.status(404).json({ error: 'Investigação não encontrada.' });
     }
 
-    res.json(rows[0]);
+    const investigation = rows[0];
+    const [[counts]] = await pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM sources WHERE investigation_id = ?) AS sources,
+         (SELECT COUNT(*) FROM topics WHERE investigation_id = ?) AS evidence,
+         0 AS gaps`,
+      [req.params.id, req.params.id]
+    );
+
+    const [jobs] = await pool.query(
+      `SELECT id, status, job_type, created_at, started_at, finished_at, error_message
+       FROM research_jobs
+       WHERE investigation_id = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [req.params.id]
+    );
+
+    res.json({ ...investigation, counts, latest_job: jobs[0] || null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/investigations/:id/jobs', async (req, res) => {
+  const investigationId = Number(req.params.id);
+  if (!Number.isInteger(investigationId) || investigationId < 1) {
+    return res.status(400).json({ error: 'ID de investigação inválido.' });
+  }
+
+  const jobType = String(req.body?.job_type || 'research').trim() || 'research';
+
+  try {
+    const [investigations] = await pool.query(
+      'SELECT id FROM investigations WHERE id = ?',
+      [investigationId]
+    );
+    if (!investigations.length) {
+      return res.status(404).json({ error: 'Investigação não encontrada.' });
+    }
+
+    const [activeJobs] = await pool.query(
+      `SELECT id, status FROM research_jobs
+       WHERE investigation_id = ? AND status IN ('queued', 'running')
+       ORDER BY id DESC LIMIT 1`,
+      [investigationId]
+    );
+
+    if (activeJobs.length) {
+      return res.status(409).json({ error: 'Já existe uma pesquisa na fila ou em execução.' });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO research_jobs
+       (investigation_id, status, job_type, payload, created_at)
+       VALUES (?, 'queued', ?, ?, NOW())`,
+      [investigationId, jobType, JSON.stringify({ source: 'web-mvp' })]
+    );
+
+    const [rows] = await pool.query(
+      `SELECT id, title, objective, status, created_at, updated_at
+       FROM investigations WHERE id = ?`,
+      [investigationId]
+    );
+    const [jobs] = await pool.query(
+      `SELECT id, status, job_type, created_at, started_at, finished_at, error_message
+       FROM research_jobs WHERE id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json({
+      investigation: { ...rows[0], counts: { sources: 0, evidence: 0, gaps: 0 }, latest_job: jobs[0] }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

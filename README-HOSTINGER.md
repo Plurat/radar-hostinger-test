@@ -1,16 +1,14 @@
-# Deploy — Hostinger
+# Deploy — Radar Editorial 0.1.1
 
-Configuração esperada:
+1. Atualize os arquivos do repositório GitHub conectado ao Hostinger.
+2. Mantenha branch `main`, framework `Express`, Node `22.x`, root `./` e entry file `server.js`.
+3. Faça o redeploy.
+4. Não altere as variáveis `DB_*` já configuradas.
+5. Não reimporte o schema: esta versão usa as seis tabelas já existentes.
 
-Framework: Express
-Branch: main
-Node.js: 22.x
-Root: ./
-Package manager: npm
-Entry file: server.js
-
-Não é necessário configurar comando de build.
-
-A aplicação já contém o frontend estático em `public/`, e o Express o serve diretamente.
-
-Mantenha as variáveis de ambiente do MySQL configuradas no hPanel.
+Teste:
+- `/api/health`
+- página inicial;
+- abrir uma investigação;
+- clicar em **Iniciar pesquisa**;
+- conferir `research_jobs` no phpMyAdmin.

@@ -15,19 +15,19 @@ const detailMeta = document.getElementById('detail-meta');
 const detailObjective = document.getElementById('detail-objective');
 const startResearchButton = document.getElementById('start-research-button');
 const jobArea = document.getElementById('job-area');
+const sourcesArea = document.getElementById('sources-area');
 const sourcesCount = document.getElementById('sources-count');
 const evidenceCount = document.getElementById('evidence-count');
 const gapsCount = document.getElementById('gaps-count');
+const researchNote = document.getElementById('research-note');
 
 let currentInvestigationId = null;
+let pollTimer = null;
 
 function escapeHtml(value) {
   return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
 
 function formatDate(value) {
@@ -74,34 +74,56 @@ async function loadInvestigations() {
 
 async function openInvestigation(id) {
   currentInvestigationId = id;
+  stopPolling();
   homeView.classList.add('hidden');
   detailView.classList.remove('hidden');
   detailTitle.textContent = 'Carregando...';
-  detailObjective.textContent = '—';
   jobArea.innerHTML = '<div class="empty">Carregando investigação...</div>';
+  sourcesArea.innerHTML = '<div class="empty">Carregando fontes...</div>';
   try {
-    const response = await fetch(`/api/investigations/${encodeURIComponent(id)}`);
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Não foi possível carregar a investigação.');
-    renderDetail(data);
+    await refreshDetail();
   } catch (error) {
     detailTitle.textContent = 'Erro';
     jobArea.innerHTML = `<div class="empty error">${escapeHtml(error.message)}</div>`;
   }
 }
 
+async function refreshDetail() {
+  if (!currentInvestigationId) return;
+  const response = await fetch(`/api/investigations/${encodeURIComponent(currentInvestigationId)}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Não foi possível carregar a investigação.');
+  renderDetail(data);
+
+  if (['queued', 'running'].includes(data.latest_job?.status)) startPolling();
+  else stopPolling();
+}
+
 function renderDetail(data) {
   detailTitle.textContent = data.title;
   detailStatus.textContent = data.status;
-  detailObjective.textContent = data.objective || 'Nenhum objetivo informado.';
   detailMeta.textContent = `Criada em ${formatDate(data.created_at)} · Atualizada em ${formatDate(data.updated_at)}`;
+  detailObjective.textContent = data.objective || 'Nenhum objetivo informado.';
   sourcesCount.textContent = data.counts?.sources ?? 0;
   evidenceCount.textContent = data.counts?.evidence ?? 0;
   gapsCount.textContent = data.counts?.gaps ?? 0;
   renderJob(data.latest_job);
-  const hasActiveJob = ['queued', 'running'].includes(data.latest_job?.status);
-  startResearchButton.disabled = hasActiveJob;
-  startResearchButton.textContent = hasActiveJob ? 'Pesquisa na fila' : 'Iniciar pesquisa';
+  renderSources(data.sources || []);
+
+  const jobStatus = data.latest_job?.status;
+  const active = ['queued', 'running'].includes(jobStatus);
+  startResearchButton.disabled = active;
+  if (jobStatus === 'running') startResearchButton.textContent = 'Pesquisando...';
+  else if (jobStatus === 'queued') startResearchButton.textContent = 'Pesquisa na fila';
+  else startResearchButton.textContent = 'Iniciar pesquisa';
+
+  if (jobStatus === 'completed') {
+    researchNote.textContent = 'Pesquisa concluída. As fontes abaixo foram coletadas pela Web e armazenadas no Radar.';
+  } else if (jobStatus === 'failed') {
+    researchNote.textContent = data.latest_job?.error_message || 'A pesquisa falhou. Verifique a configuração do motor Web.';
+  } else {
+    researchNote.textContent = 'O Radar pesquisa a Web e grava as fontes nesta investigação. A classificação por IA será adicionada em uma etapa posterior.';
+  }
 }
 
 function renderJob(job) {
@@ -109,13 +131,49 @@ function renderJob(job) {
     jobArea.innerHTML = '<div class="job-empty">Nenhuma pesquisa foi iniciada nesta investigação.</div>';
     return;
   }
+  let payload = null;
+  try { payload = job.payload ? JSON.parse(job.payload) : null; } catch {}
+  const summary = payload?.inserted != null
+    ? `${payload.raw_results || 0} resultados recebidos · ${payload.inserted} fontes novas · ${payload.duplicates || 0} duplicadas`
+    : payload?.provider ? `Provedor: ${payload.provider}` : '';
   jobArea.innerHTML = `
     <div class="job-row">
-      <div><strong>Job #${escapeHtml(job.id)}</strong><span>${escapeHtml(job.job_type)}</span></div>
+      <div class="job-main"><strong>Job #${escapeHtml(job.id)}</strong><span>${escapeHtml(job.job_type)}${summary ? ` · ${escapeHtml(summary)}` : ''}</span></div>
       <span class="status">${escapeHtml(job.status)}</span>
     </div>
-    <small>Criado em ${escapeHtml(formatDate(job.created_at))}</small>
+    <small>Criado em ${escapeHtml(formatDate(job.created_at))}${job.finished_at ? ` · Finalizado em ${escapeHtml(formatDate(job.finished_at))}` : ''}</small>
+    ${job.error_message ? `<p class="error">${escapeHtml(job.error_message)}</p>` : ''}
   `;
+}
+
+function renderSources(sources) {
+  if (!sources.length) {
+    sourcesArea.innerHTML = '<div class="empty">Nenhuma fonte armazenada ainda.</div>';
+    return;
+  }
+  sourcesArea.innerHTML = sources.map(source => `
+    <article class="source-card">
+      <div class="source-top">
+        <div class="source-domain">${escapeHtml(source.domain || source.source_type || 'web')}</div>
+        ${source.relevance_score != null ? `<span class="source-score">Relevância ${escapeHtml(Number(source.relevance_score).toFixed(2))}</span>` : ''}
+      </div>
+      <h4><a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a></h4>
+      ${source.summary ? `<p>${escapeHtml(source.summary)}</p>` : ''}
+      <small>${source.published_at ? `Publicada em ${escapeHtml(formatDate(source.published_at))}` : `Coletada em ${escapeHtml(formatDate(source.created_at))}`}</small>
+    </article>
+  `).join('');
+}
+
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(async () => {
+    try { await refreshDetail(); } catch (error) { console.error(error); }
+  }, 2000);
+}
+
+function stopPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
 }
 
 async function startResearch() {
@@ -124,15 +182,13 @@ async function startResearch() {
   startResearchButton.textContent = 'Criando job...';
   try {
     const response = await fetch(`/api/investigations/${encodeURIComponent(currentInvestigationId)}/jobs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_type: 'research' })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_type: 'research' })
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Não foi possível criar o job.');
-    renderDetail(data.investigation);
+    if (!response.ok) throw new Error(data.error || 'Não foi possível iniciar a pesquisa.');
+    await refreshDetail();
   } catch (error) {
-    jobArea.innerHTML = `<div class="empty error">${escapeHtml(error.message)}</div>`;
+    researchNote.textContent = error.message;
     startResearchButton.disabled = false;
     startResearchButton.textContent = 'Iniciar pesquisa';
   }
@@ -148,32 +204,21 @@ form.addEventListener('submit', async (event) => {
   showMessage('Criando investigação...');
   try {
     const response = await fetch('/api/investigations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, objective })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, objective })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Não foi possível criar a investigação.');
-    titleInput.value = '';
-    objectiveInput.value = '';
-    updateCounter();
+    titleInput.value = ''; objectiveInput.value = ''; updateCounter();
     showMessage('Investigação criada com sucesso.', 'success');
     await loadInvestigations();
-  } catch (error) {
-    showMessage(error.message, 'error');
-  } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = 'Criar investigação';
-  }
+  } catch (error) { showMessage(error.message, 'error'); }
+  finally { submitButton.disabled = false; submitButton.textContent = 'Criar investigação'; }
 });
 
 titleInput.addEventListener('input', updateCounter);
 refreshButton.addEventListener('click', loadInvestigations);
 backButton.addEventListener('click', () => {
-  currentInvestigationId = null;
-  detailView.classList.add('hidden');
-  homeView.classList.remove('hidden');
-  loadInvestigations();
+  stopPolling(); currentInvestigationId = null; detailView.classList.add('hidden'); homeView.classList.remove('hidden'); loadInvestigations();
 });
 startResearchButton.addEventListener('click', startResearch);
 

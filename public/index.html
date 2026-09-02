@@ -3,64 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Radar Editorial — inteligência editorial e pesquisa.">
+<meta name="description" content="Radar Editorial — inteligência editorial e pesquisa Web.">
 <title>Radar Editorial</title>
 <style>
 :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17212b;background:#f3f5f7;line-height:1.5;font-synthesis:none}
 *{box-sizing:border-box}html{min-width:320px}body{margin:0;min-height:100vh;background:#f3f5f7}button,input,textarea{font:inherit}
-.container{width:min(1120px,calc(100% - 40px));margin:0 auto;padding:34px 0 64px}
-.hero{padding:0 2px 24px}.eyebrow{font-size:11px;line-height:1.2;letter-spacing:.16em;font-weight:800;color:#667085}.title-row{display:flex;align-items:end;justify-content:space-between;gap:20px}.title-wrap h1{margin:5px 0 0;font-size:38px;line-height:1.05;letter-spacing:-.035em}.subtitle{margin:6px 0 0;color:#667085;font-size:14px}.badges{display:flex;gap:8px;align-items:center}.badge,.status{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid #d8dee6;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:#fff;color:#596273}
+.container{width:min(1120px,calc(100% - 40px));margin:0 auto;padding:34px 0 64px}.hero{padding:0 2px 24px}.eyebrow{font-size:11px;line-height:1.2;letter-spacing:.16em;font-weight:800;color:#667085}.title-row{display:flex;align-items:end;justify-content:space-between;gap:20px}.title-wrap h1{margin:5px 0 0;font-size:38px;line-height:1.05;letter-spacing:-.035em}.subtitle{margin:6px 0 0;color:#667085;font-size:14px}.badges{display:flex;gap:8px;align-items:center}.badge,.status{display:inline-flex;align-items:center;white-space:nowrap;border:1px solid #d8dee6;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:#fff;color:#596273}
 .card{background:#fff;border:1px solid #dfe4ea;border-radius:16px;box-shadow:0 5px 20px rgba(16,24,40,.045);padding:26px;margin-bottom:18px}.card h2{margin:0 0 7px;font-size:26px;line-height:1.2}.card h3{margin:0;font-size:20px;line-height:1.25}.intro-text{margin:0 0 24px;color:#667085}
-label{display:block;margin:16px 0 7px;font-weight:750;font-size:14px}label span{font-weight:500;color:#98a2b3}
-input#title,textarea#objective{display:block;width:100%;min-width:0;border:1px solid #cbd3dc;border-radius:10px;padding:12px 13px;background:#fff;color:#17212b;outline:none;appearance:none}input#title{height:46px}textarea#objective{min-height:118px;resize:vertical}input#title:focus,textarea#objective:focus{border-color:#667085;box-shadow:0 0 0 3px rgba(102,112,133,.12)}.counter{text-align:right;font-size:11px;color:#98a2b3;margin-top:5px}
+label{display:block;margin:16px 0 7px;font-weight:750;font-size:14px}label span{font-weight:500;color:#98a2b3}input#title,textarea#objective{display:block;width:100%;min-width:0;border:1px solid #cbd3dc;border-radius:10px;padding:12px 13px;background:#fff;color:#17212b;outline:none;appearance:none}input#title{height:46px}textarea#objective{min-height:118px;resize:vertical}input#title:focus,textarea#objective:focus{border-color:#667085;box-shadow:0 0 0 3px rgba(102,112,133,.12)}.counter{text-align:right;font-size:11px;color:#98a2b3;margin-top:5px}
 .form-actions{display:flex;align-items:center;gap:14px;margin-top:18px}button{border:0;border-radius:10px;padding:11px 16px;font-weight:750;cursor:pointer;background:#17212b;color:#fff}button:hover{filter:brightness(.94)}button:disabled{opacity:.55;cursor:default}button.secondary,button.back-button{background:#fff;color:#344054;border:1px solid #d8dee6}.message{min-height:20px;font-size:13px;color:#667085}.message.success{color:#28784a}.message.error,.error{color:#b42318}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:18px}.history-card{padding-bottom:20px}.investigation-list{margin-top:18px;display:grid;gap:10px}.investigation-item{width:100%;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;text-align:left;background:#fff;color:#17212b;border:1px solid #dfe4ea;border-radius:12px;padding:17px;cursor:pointer}.investigation-item:hover{border-color:#98a2b3;background:#fafbfc}.item-content{min-width:0}.item-content h4{margin:0 0 6px;font-size:17px}.item-content p{margin:0 0 8px;color:#667085;font-size:14px;overflow-wrap:anywhere}.item-content small{color:#98a2b3;font-size:12px}.hidden{display:none!important}.empty{text-align:center;color:#98a2b3;padding:22px 4px}
 .back-button{margin-bottom:14px}.detail-card{padding:28px}.detail-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.detail-title{margin:5px 0 0;font-size:30px;line-height:1.15;letter-spacing:-.025em}.detail-meta{margin-top:11px;color:#98a2b3;font-size:12px}.detail-objective{margin-top:25px;padding-top:21px;border-top:1px solid #edf0f3}.detail-objective h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#667085}.detail-objective p{margin:8px 0 0;white-space:pre-wrap}.research-card{min-height:190px}.job-area{margin-top:20px;border:1px solid #e5e9ef;border-radius:11px;padding:15px;background:#fafbfc}.job-row{display:flex;align-items:center;justify-content:space-between;gap:15px}.job-main{display:flex;flex-direction:column;gap:3px}.job-main span,.job-area small{color:#98a2b3;font-size:12px}.muted{color:#98a2b3;font-size:13px}.metrics-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.metric-card{text-align:center}.metric-card strong{display:block;font-size:30px;line-height:1.1}.metric-card span{color:#667085;font-size:13px}
+.sources-list{display:grid;gap:12px}.source-card{border:1px solid #e1e6ec;border-radius:12px;padding:16px;background:#fff}.source-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.source-domain{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#667085}.source-score{font-size:11px;color:#667085;border:1px solid #dfe4ea;border-radius:999px;padding:4px 8px}.source-card h4{margin:7px 0 6px;font-size:16px;line-height:1.35}.source-card h4 a{color:#17212b;text-decoration:none}.source-card h4 a:hover{text-decoration:underline}.source-card p{margin:0 0 8px;color:#667085;font-size:13px}.source-card small{color:#98a2b3;font-size:11px}.section-note{margin:8px 0 0;color:#667085;font-size:13px}
 @media(max-width:700px){.container{width:min(100% - 20px,1120px);padding-top:24px}.title-row,.section-heading,.form-actions,.detail-top{align-items:flex-start;flex-direction:column}.title-wrap h1{font-size:31px}.badges{align-self:flex-start}.investigation-item{flex-direction:column}.metrics-grid{grid-template-columns:1fr}.card{padding:20px}}
 </style>
 </head>
 <body>
 <main class="container">
-<header class="hero">
-  <div class="eyebrow">INTELIGÊNCIA EDITORIAL</div>
-  <div class="title-row">
-    <div class="title-wrap"><h1>Radar Editorial</h1><p class="subtitle">Web 0.1.1 · MVP</p></div>
-    <div class="badges"><span class="badge">WEB 0.1.1</span><span class="badge">MVP</span></div>
-  </div>
-</header>
+<header class="hero"><div class="eyebrow">INTELIGÊNCIA EDITORIAL</div><div class="title-row"><div class="title-wrap"><h1>Radar Editorial</h1><p class="subtitle">Web 0.2.0 · MVP</p></div><div class="badges"><span class="badge">WEB 0.2.0</span><span class="badge">MVP</span></div></div></header>
 <section id="home-view">
-  <section class="card">
-    <h2>O que você quer investigar?</h2>
-    <p class="intro-text">Crie uma investigação para organizar pesquisa, fontes, evidências e análise.</p>
-    <form id="investigation-form">
-      <label for="title">Tema da investigação</label>
-      <input id="title" name="title" type="text" maxlength="500" required autocomplete="off" placeholder="Ex.: Ansiedade e uso de redes sociais">
-      <div class="counter" id="counter">0/500</div>
-      <label for="objective">Objetivo <span>(opcional)</span></label>
-      <textarea id="objective" name="objective" rows="4" maxlength="2000" placeholder="O que você quer descobrir, atualizar ou comparar?"></textarea>
-      <div class="form-actions"><button id="submit-button" type="submit">Criar investigação</button><div id="message" class="message" aria-live="polite"></div></div>
-    </form>
-  </section>
-  <section class="card history-card">
-    <div class="section-heading"><div><div class="eyebrow">HISTÓRICO</div><h3>Investigações</h3></div><button id="refresh-button" class="secondary" type="button">Atualizar</button></div>
-    <div id="investigation-list" class="investigation-list"></div>
-  </section>
+<section class="card"><h2>O que você quer investigar?</h2><p class="intro-text">Crie uma investigação para organizar pesquisa, fontes, evidências e análise.</p><form id="investigation-form"><label for="title">Tema da investigação</label><input id="title" name="title" type="text" maxlength="500" required autocomplete="off" placeholder="Ex.: Ansiedade e uso de redes sociais"><div class="counter" id="counter">0/500</div><label for="objective">Objetivo <span>(opcional)</span></label><textarea id="objective" name="objective" rows="4" maxlength="2000" placeholder="O que você quer descobrir, atualizar ou comparar?"></textarea><div class="form-actions"><button id="submit-button" type="submit">Criar investigação</button><div id="message" class="message" aria-live="polite"></div></div></form></section>
+<section class="card history-card"><div class="section-heading"><div><div class="eyebrow">HISTÓRICO</div><h3>Investigações</h3></div><button id="refresh-button" class="secondary" type="button">Atualizar</button></div><div id="investigation-list" class="investigation-list"></div></section>
 </section>
 <section id="detail-view" class="hidden">
-  <button id="back-button" class="back-button" type="button">← Voltar para investigações</button>
-  <section class="card detail-card">
-    <div class="detail-top"><div><div class="eyebrow">INVESTIGAÇÃO</div><h2 id="detail-title" class="detail-title">Carregando...</h2></div><span id="detail-status" class="status">draft</span></div>
-    <div class="detail-meta" id="detail-meta"></div>
-    <div class="detail-objective"><h3>Objetivo</h3><p id="detail-objective">—</p></div>
-  </section>
-  <section class="card research-card">
-    <div class="section-heading"><div><div class="eyebrow">PESQUISA</div><h3>Motor de pesquisa</h3></div><button id="start-research-button" type="button">Iniciar pesquisa</button></div>
-    <div id="job-area" class="job-area"></div>
-    <p class="muted">Nesta versão, o botão apenas cria o job de pesquisa na fila. O motor Web será conectado na próxima etapa.</p>
-  </section>
-  <section class="metrics-grid"><article class="card metric-card"><strong id="sources-count">0</strong><span>Fontes</span></article><article class="card metric-card"><strong id="evidence-count">0</strong><span>Evidências</span></article><article class="card metric-card"><strong id="gaps-count">0</strong><span>Lacunas</span></article></section>
+<button id="back-button" class="back-button" type="button">← Voltar para investigações</button>
+<section class="card detail-card"><div class="detail-top"><div><div class="eyebrow">INVESTIGAÇÃO</div><h2 id="detail-title" class="detail-title">Carregando...</h2></div><span id="detail-status" class="status">draft</span></div><div class="detail-meta" id="detail-meta"></div><div class="detail-objective"><h3>Objetivo</h3><p id="detail-objective">—</p></div></section>
+<section class="card research-card"><div class="section-heading"><div><div class="eyebrow">PESQUISA WEB</div><h3>Motor de pesquisa</h3></div><button id="start-research-button" type="button">Iniciar pesquisa</button></div><div id="job-area" class="job-area"></div><p id="research-note" class="section-note">O Radar pesquisa a Web e grava as fontes nesta investigação. A classificação por IA será adicionada em uma etapa posterior.</p></section>
+<section class="card"><div class="section-heading"><div><div class="eyebrow">FONTES ENCONTRADAS</div><h3>Fontes</h3></div></div><div id="sources-area" class="sources-list"><div class="empty">Nenhuma fonte armazenada ainda.</div></div></section>
+<section class="metrics-grid"><article class="card metric-card"><strong id="sources-count">0</strong><span>Fontes</span></article><article class="card metric-card"><strong id="evidence-count">0</strong><span>Evidências</span></article><article class="card metric-card"><strong id="gaps-count">0</strong><span>Lacunas</span></article></section>
 </section>
 </main>
-<script src="/app.js?v=0.1.1-r2" defer></script>
+<script src="/app.js?v=0.2.0" defer></script>
 </body>
 </html>

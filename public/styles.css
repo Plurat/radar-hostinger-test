@@ -150,3 +150,5 @@ button.secondary, .back-button { background: #fff; color: #344054; border: 1px s
 .confidence-high { background:#eef8ef; color:#216e39; border-color:#b9dfc0; }
 .confidence-medium { background:#fff8e6; color:#8a5a00; border-color:#ead69a; }
 .confidence-low { background:#fff0f0; color:#a12626; border-color:#e3b1b1; }
+
+.confidence-legend{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px}.confidence-legend .confidence{font-size:11px}

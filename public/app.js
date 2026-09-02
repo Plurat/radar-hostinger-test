@@ -161,10 +161,10 @@ function renderSources(sources) {
     <article class="source-card">
       <div class="source-top">
         <div class="source-domain">${escapeHtml(source.domain || 'web')} · ${escapeHtml(source.source_type || 'web')}</div>
-        <div class="source-score-group"><span class="source-score">Radar ${escapeHtml((Number(source.ranking_score || 0) * 100).toFixed(0))}/100</span><span class="confidence confidence-${escapeHtml(source.confidence_level || 'medium')}">Confiança ${escapeHtml((Number(source.confidence_score || 0) * 100).toFixed(0))}</span></div>
+        <div class="source-score-group"><span class="source-score">Radar ${escapeHtml((Number(source.ranking_score || 0) * 100).toFixed(0))}/100</span><span class="confidence confidence-${escapeHtml(source.confidence_level || 'medium')}">Confiança ${escapeHtml((Number(source.confidence_score || 0) * 100).toFixed(0))} · ${escapeHtml(source.confidence_level === 'high' ? 'Alta' : source.confidence_level === 'low' ? 'Baixa' : 'Média')}</span></div>
       </div>
       <h4><span class="source-rank">#${index + 1}</span> <a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a></h4>
-      <div class="score-breakdown">Relevância ${escapeHtml((Number(source.relevance_score || 0) * 100).toFixed(0))} · Qualidade ${escapeHtml((Number(source.quality_score || 0) * 100).toFixed(0))} · Autoridade ${escapeHtml((Number(source.authority_score || 0) * 100).toFixed(0))} · Recência ${escapeHtml((Number(source.recency_score || 0) * 100).toFixed(0))} · Correspondência ${escapeHtml((Number(source.correspondence_score || 0) * 100).toFixed(0))}</div>
+      <div class="score-breakdown">Relevância ${escapeHtml((Number(source.relevance_score || 0) * 100).toFixed(0))} · Qualidade ${escapeHtml((Number(source.quality_score || 0) * 100).toFixed(0))} · Autoridade ${escapeHtml((Number(source.authority_score || 0) * 100).toFixed(0))} · Recência ${source.recency_score == null ? 'não identificada' : `${escapeHtml(source.recency_label || 'data disponível')} · ${escapeHtml((Number(source.recency_score) * 100).toFixed(0))}`} · Correspondência ${escapeHtml((Number(source.correspondence_score || 0) * 100).toFixed(0))}</div>
       ${source.summary ? `<p>${escapeHtml(source.summary)}</p>` : ''}
       <small>${source.published_at ? `Publicada em ${escapeHtml(formatDate(source.published_at))}` : `Coletada em ${escapeHtml(formatDate(source.created_at))}`}</small>
     </article>

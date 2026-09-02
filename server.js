@@ -64,14 +64,23 @@ function tokens(text) {
   )];
 }
 
-function correspondenceScore(title, objective, sourceTitle, summary) {
-  const target = new Set(tokens(`${title} ${objective}`));
-  const source = new Set(tokens(`${sourceTitle} ${summary}`));
-  if (!target.size || !source.size) return 0.5;
+function coverageScore(targetText, sourceSet) {
+  const target = new Set(tokens(targetText));
+  if (!target.size || !sourceSet.size) return null;
   let matches = 0;
-  for (const token of target) if (source.has(token)) matches++;
-  const coverage = matches / target.size;
-  return Math.max(0, Math.min(1, coverage));
+  for (const token of target) if (sourceSet.has(token)) matches++;
+  return Math.max(0, Math.min(1, matches / target.size));
+}
+
+function correspondenceScore(title, objective, sourceTitle, summary) {
+  const source = new Set(tokens(`${sourceTitle} ${summary}`));
+  if (!source.size) return 0.5;
+  const topicCoverage = coverageScore(title, source);
+  const objectiveCoverage = coverageScore(objective, source);
+  if (topicCoverage == null) return objectiveCoverage == null ? 0.5 : objectiveCoverage;
+  if (objectiveCoverage == null) return topicCoverage;
+  // O tema identifica o núcleo da investigação; o objetivo funciona como refinamento.
+  return Math.max(0, Math.min(1, 0.75 * topicCoverage + 0.25 * objectiveCoverage));
 }
 
 function classifySource(domain, url) {
@@ -126,13 +135,21 @@ function recencyScore(publishedAt) {
 }
 
 function editorialRank({ relevance, quality, recency, authority, correspondence }) {
+  // Ranking editorial refinado: relevância 30%, qualidade 25%,
+  // autoridade 20%, recência 15%, correspondência 10%.
   const score =
-    0.40 * relevance +
+    0.30 * relevance +
     0.25 * quality +
+    0.20 * authority +
     0.15 * recency +
-    0.10 * authority +
     0.10 * correspondence;
   return Number(Math.max(0, Math.min(1, score)).toFixed(4));
+}
+
+function confidenceForSource({ quality, authority, recency }) {
+  const score = Number((0.50 * quality + 0.35 * authority + 0.15 * recency).toFixed(4));
+  const level = score >= 0.80 ? 'high' : score >= 0.60 ? 'medium' : 'low';
+  return { score, level };
 }
 
 function scoreSource({ title, objective, sourceTitle, summary, domain, url, relevance, publishedAt }) {
@@ -143,7 +160,8 @@ function scoreSource({ title, objective, sourceTitle, summary, domain, url, rele
   const correspondence = correspondenceScore(title, objective, sourceTitle, summary);
   const rel = Number.isFinite(Number(relevance)) ? Math.max(0, Math.min(1, Number(relevance))) : 0.5;
   const rank = editorialRank({ relevance: rel, quality, recency, authority, correspondence });
-  return { type, quality, authority, recency, correspondence, rank };
+  const confidence = confidenceForSource({ quality, authority, recency });
+  return { type, quality, authority, recency, correspondence, rank, confidence };
 }
 
 async function scoreInvestigationSources(investigationId, title, objective) {
@@ -192,7 +210,9 @@ async function getRankedSources(investigationId, title, objective) {
       authority_score: authority,
       recency_score: recency,
       correspondence_score: correspondence,
-      ranking_score: editorialRank({ relevance, quality, recency, authority, correspondence })
+      ranking_score: editorialRank({ relevance, quality, recency, authority, correspondence }),
+      confidence_score: confidenceForSource({ quality, authority, recency }).score,
+      confidence_level: confidenceForSource({ quality, authority, recency }).level
     };
   }).sort((a, b) => b.ranking_score - a.ranking_score || b.id - a.id).slice(0, 50);
 }
@@ -343,7 +363,7 @@ app.get('/api/investigations/:id', async (req,res) => {
     const [[counts]]=await pool.query(`SELECT (SELECT COUNT(*) FROM sources WHERE investigation_id=?) AS sources, 0 AS evidence, 0 AS gaps`,[req.params.id]);
     const [jobs]=await pool.query(`SELECT id,status,job_type,payload,created_at,started_at,finished_at,error_message FROM research_jobs WHERE investigation_id=? ORDER BY id DESC LIMIT 1`,[req.params.id]);
     const sources=await getRankedSources(investigation.id,investigation.title,investigation.objective);
-    res.json({...investigation,counts,latest_job:jobs[0]||null,sources,ranking:{relevance:0.40,quality:0.25,recency:0.15,authority:0.10,correspondence:0.10}});
+    res.json({...investigation,counts,latest_job:jobs[0]||null,sources,ranking:{relevance:0.30,quality:0.25,authority:0.20,recency:0.15,correspondence:0.10}});
   } catch(error){ res.status(500).json({error:error.message}); }
 });
 

@@ -1,7 +1,5 @@
-# Radar Editorial 0.2.2
+# Radar Editorial 0.2.3
 
-Web-only MVP. Adds deterministic source classification and preliminary editorial ranking without AI.
+Pesquisa Web real com Tavily, armazenamento MySQL, ranking editorial refinado e indicador de confiança da fonte.
 
-Ranking weights: relevance 40%, quality 25%, recency 15%, authority 10%, correspondence 10%.
-
-No database schema migration is required. Existing `sources.quality_score`, `sources.authority_score` and `sources.source_type` columns are used.
+Sem IA nesta etapa.

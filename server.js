@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const maxResults = Math.min(Math.max(Number(process.env.SEARCH_MAX_RESULTS || 15), 1), 20);
+const appVersion = '0.2.1';
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -68,16 +69,53 @@ async function tavilySearch(query) {
     })
   });
 
-  const data = await response.json().catch(() => ({}));
+  const text = await response.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch {
+    data = { _raw_response: text.slice(0, 4000) };
+  }
+
   if (!response.ok) {
-    const detail = data?.detail || data?.message || `Tavily respondeu HTTP ${response.status}.`;
-    const error = new Error(detail);
+    const detail = data?.detail || data?.message || data?.error || `Tavily respondeu HTTP ${response.status}.`;
+    const error = new Error(String(detail));
     error.code = 'SEARCH_PROVIDER';
     error.status = response.status;
+    error.providerResponse = data;
     throw error;
   }
 
-  return data;
+  const results = Array.isArray(data?.results) ? data.results : [];
+  return {
+    data,
+    results,
+    diagnostics: {
+      http_status: response.status,
+      request_id: data?.request_id || null,
+      response_time: data?.response_time || null,
+      response_keys: Object.keys(data || {})
+    }
+  };
+}
+
+function buildSearchQueries(title, objective) {
+  const cleanTitle = String(title || '').trim();
+  const cleanObjective = String(objective || '').trim();
+  const queries = [];
+
+  if (cleanTitle) queries.push(cleanTitle);
+
+  // Only use the objective as a secondary query. This prevents a long
+  // editorial instruction from becoming the primary search query.
+  if (cleanTitle && cleanObjective) {
+    const compactObjective = cleanObjective
+      .replace(/[—–-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 180);
+    if (compactObjective) queries.push(`${cleanTitle} ${compactObjective}`.slice(0, 400));
+  }
+
+  return [...new Set(queries)];
 }
 
 async function runResearchJob(jobId) {
@@ -93,7 +131,6 @@ async function runResearchJob(jobId) {
 
     if (!job) return;
     investigationId = job.investigation_id;
-
     if (job.status !== 'queued') return;
 
     await pool.query(
@@ -107,17 +144,62 @@ async function runResearchJob(jobId) {
       [investigationId]
     );
 
-    const query = [job.title, job.objective].filter(Boolean).join(' — ').slice(0, 400);
-    const result = await tavilySearch(query);
-    const results = Array.isArray(result.results) ? result.results : [];
+    const queries = buildSearchQueries(job.title, job.objective);
+    if (!queries.length) throw Object.assign(new Error('Não foi possível montar uma consulta de pesquisa.'), { code: 'SEARCH_QUERY' });
 
+    const attempts = [];
+    let selected = null;
+
+    for (const query of queries) {
+      try {
+        const response = await tavilySearch(query);
+        attempts.push({ query, ...response.diagnostics, raw_results: response.results.length });
+        if (response.results.length) {
+          selected = { query, ...response };
+          break;
+        }
+      } catch (error) {
+        attempts.push({
+          query,
+          http_status: error.status || null,
+          error_code: error.code || null,
+          error: String(error.message || error).slice(0, 2000)
+        });
+        // Provider errors are not silently converted into an empty search.
+        throw error;
+      }
+    }
+
+    if (!selected) {
+      const payload = JSON.stringify({
+        provider: 'tavily',
+        query: queries[0],
+        queries_attempted: queries,
+        attempts,
+        raw_results: 0,
+        inserted: 0,
+        duplicates: 0,
+        max_results: maxResults,
+        outcome: 'empty_results'
+      });
+      const error = new Error('A Tavily respondeu sem resultados para as consultas realizadas.');
+      error.code = 'SEARCH_EMPTY';
+      error.payload = payload;
+      throw error;
+    }
+
+    const results = selected.results;
     let inserted = 0;
     let duplicates = 0;
+    let skipped = 0;
 
     for (const item of results) {
       const url = normalizeUrl(item.url);
       const title = String(item.title || '').trim();
-      if (!url || !title) continue;
+      if (!url || !title) {
+        skipped += 1;
+        continue;
+      }
 
       const [existing] = await pool.query(
         `SELECT id FROM sources WHERE investigation_id = ? AND url = ? LIMIT 1`,
@@ -157,11 +239,17 @@ async function runResearchJob(jobId) {
 
     const payload = JSON.stringify({
       provider: 'tavily',
-      query,
+      query: selected.query,
+      queries_attempted: queries,
+      attempts,
       raw_results: results.length,
       inserted,
       duplicates,
-      max_results: maxResults
+      skipped,
+      max_results: maxResults,
+      request_id: selected.diagnostics.request_id,
+      response_time: selected.diagnostics.response_time,
+      outcome: 'success'
     });
 
     await pool.query(
@@ -182,11 +270,22 @@ async function runResearchJob(jobId) {
         [investigationId]
       ).catch(() => {});
     }
+
+    let payload = error.payload || null;
+    if (!payload) {
+      payload = JSON.stringify({
+        provider: 'tavily',
+        outcome: 'error',
+        error_code: error.code || null,
+        http_status: error.status || null
+      });
+    }
+
     await pool.query(
       `UPDATE research_jobs
-       SET status = 'failed', finished_at = NOW(), error_message = ?
+       SET status = 'failed', finished_at = NOW(), error_message = ?, payload = ?
        WHERE id = ?`,
-      [String(error.message || error).slice(0, 10000), jobId]
+      [String(error.message || error).slice(0, 10000), payload, jobId]
     ).catch(() => {});
   }
 }
@@ -197,7 +296,7 @@ app.get('/api/health', async (_req, res) => {
     res.json({
       ok: true,
       service: 'radar-editorial',
-      version: '0.2.0',
+      version: appVersion,
       framework: 'express',
       node: process.version,
       database: 'mysql',
@@ -338,5 +437,5 @@ app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => {
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Radar Editorial 0.2.0 running on port ${port}`);
+  console.log(`Radar Editorial ${appVersion} running on port ${port}`);
 });

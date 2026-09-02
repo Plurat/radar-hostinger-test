@@ -1,4 +1,4 @@
-# Radar Editorial 0.2.0
+# Radar Editorial 0.2.1
 
 Primeiro motor de pesquisa Web real.
 

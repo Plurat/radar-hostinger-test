@@ -1,4 +1,4 @@
-Radar Editorial 0.2.0
+Radar Editorial 0.2.1
 Web-only MVP
 Real Web Search: Tavily
 Database: MySQL

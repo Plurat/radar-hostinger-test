@@ -1,4 +1,4 @@
-# Deploy — Radar Editorial 0.2.0
+# Deploy — Radar Editorial 0.2.1
 
 1. Atualize o repositório GitHub conectado à aplicação.
 2. Faça commit na branch `main`.

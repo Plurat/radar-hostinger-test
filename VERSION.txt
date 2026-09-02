@@ -1,1 +1,5 @@
-Radar Editorial Web 0.1.0 — Hostinger
+Radar Editorial
+Version: 0.1.0
+Target: Hostinger Business — Node.js Web App / Express
+Frontend: static files served by Express
+Database: MySQL

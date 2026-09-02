@@ -1,27 +1,19 @@
 {
-  "name": "radar-editorial-web-0.1.0",
+  "name": "radar-editorial",
   "version": "0.1.0",
   "private": true,
+  "description": "Radar Editorial 0.1.0 — Express + MySQL, optimized for Hostinger Node.js Web Apps",
   "type": "module",
   "engines": {
-    "node": ">=20 <25"
+    "node": ">=22 <25"
   },
   "scripts": {
-    "build": "vite build",
-    "start": "node server.js",
-    "dev": "vite"
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
-    "mysql2": "^3.14.4",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.7.0",
-    "vite": "^7.1.3",
-    "typescript": "^5.9.2"
+    "mysql2": "^3.14.4"
   }
 }

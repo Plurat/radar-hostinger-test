@@ -1,19 +1,42 @@
-# Radar Hostinger — Teste mínimo
+# Radar Editorial 0.1.0 — Hostinger Express
 
-Este pacote serve apenas para validar se o ambiente Node.js Web App da Hostinger aceita uma aplicação Express mínima.
+Versão inicial preparada especificamente para a implantação **Express.js** do Hostinger Node.js Web App.
 
-Arquivos:
-- package.json
-- server.js
+## Decisão de implantação
 
-Configuração esperada:
-- Framework: Express.js (se a Hostinger solicitar)
-- Node.js: 20, 22 ou 24 LTS disponível
-- Start command: npm start
-- Startup file: server.js, se solicitado
+O frontend desta versão é servido como arquivos estáticos por Express. Não depende de Vite, React em runtime ou de uma etapa de build da Hostinger.
 
-Após o deploy:
-- `/` deve mostrar "Node.js + Express funcionando."
-- `/api/health` deve retornar JSON com `ok: true`
+Fluxo:
 
-Não há MySQL, React, Vite ou outras dependências além do Express neste teste.
+Browser → Express → frontend estático
+                  └→ MySQL
+
+Isso evita o problema de o preset Express da Hostinger não expor um campo de build/output no fluxo utilizado.
+
+## Configuração
+
+- Node.js: 22.x
+- Framework: Express
+- Arquivo de entrada: `server.js`
+- Gerenciador: npm
+- Banco: MySQL por variáveis de ambiente
+
+Variáveis:
+
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASSWORD`
+
+## Banco
+
+`sql/001_schema.sql` contém o schema inicial. O banco já criado no Hostinger não precisa ser recriado ou reimportado para esta atualização.
+
+## Rotas
+
+- `/` — interface web
+- `/api/health` — teste da aplicação + MySQL
+- `GET /api/investigations`
+- `POST /api/investigations`
+- `GET /api/investigations/:id`

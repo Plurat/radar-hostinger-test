@@ -136,6 +136,11 @@ function renderJob(job) {
   const summary = payload?.inserted != null
     ? `${payload.raw_results || 0} resultados recebidos · ${payload.inserted} fontes novas · ${payload.duplicates || 0} duplicadas`
     : payload?.provider ? `Provedor: ${payload.provider}` : '';
+  const diagnostic = payload?.outcome === 'empty_results'
+    ? 'Tavily respondeu sem resultados. A consulta foi registrada para diagnóstico.'
+    : payload?.outcome === 'error'
+      ? `Falha do motor Web${payload.http_status ? ` · HTTP ${payload.http_status}` : ''}.`
+      : '';
   jobArea.innerHTML = `
     <div class="job-row">
       <div class="job-main"><strong>Job #${escapeHtml(job.id)}</strong><span>${escapeHtml(job.job_type)}${summary ? ` · ${escapeHtml(summary)}` : ''}</span></div>
@@ -143,6 +148,7 @@ function renderJob(job) {
     </div>
     <small>Criado em ${escapeHtml(formatDate(job.created_at))}${job.finished_at ? ` · Finalizado em ${escapeHtml(formatDate(job.finished_at))}` : ''}</small>
     ${job.error_message ? `<p class="error">${escapeHtml(job.error_message)}</p>` : ''}
+    ${diagnostic ? `<p class="muted">${escapeHtml(diagnostic)}</p>` : ''}
   `;
 }
 

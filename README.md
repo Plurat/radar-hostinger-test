@@ -1,29 +1,7 @@
-# Radar Editorial 0.2.1
+# Radar Editorial 0.2.2
 
-Primeiro motor de pesquisa Web real.
+Web-only MVP. Adds deterministic source classification and preliminary editorial ranking without AI.
 
-## Fluxo
+Ranking weights: relevance 40%, quality 25%, recency 15%, authority 10%, correspondence 10%.
 
-Tema + objetivo → job → Tavily Search → normalização → deduplicação por URL → MySQL → fontes na investigação.
-
-A versão não usa IA para classificação, síntese, evidências ou lacunas. Essas camadas entram depois.
-
-## Variáveis
-
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-- `TAVILY_API_KEY`
-- `SEARCH_MAX_RESULTS` (opcional, padrão 15, máximo 20)
-
-## Hostinger
-
-O projeto é estático + Express e não exige Vite, React ou etapa de build.
-
-Framework: Express
-Node: 22.x
-Entry file: server.js
-
-Depois de adicionar `TAVILY_API_KEY` nas variáveis de ambiente da aplicação, faça redeploy.
+No database schema migration is required. Existing `sources.quality_score`, `sources.authority_score` and `sources.source_type` columns are used.

@@ -1,38 +1,29 @@
 # Radar Editorial 0.1.0 — Hostinger
 
-Primeira versão funcional para Node.js Web App da Hostinger.
+Pacote simplificado para implantação como Node.js Web App na Hostinger.
 
-## Stack
-- Node.js 22
-- Express 5
-- React 19
-- Vite 7
-- MySQL 8+
+## Estrutura
 
-## Deploy na Hostinger
-Use o repositório GitHub e selecione:
-- Framework: Express
-- Branch: main
-- Node.js: 22.x
-- Root: ./
-- Build: npm run build
-- Start: npm start
-- Startup file: server.js, se solicitado
+O `package.json` está na raiz do ZIP para permitir a detecção automática do framework.
 
-Configure no painel:
-- DB_HOST
-- DB_PORT
-- DB_NAME
-- DB_USER
-- DB_PASSWORD
+- Frontend: React + Vite
+- Backend: Express.js
+- Banco: MySQL
+- Entrada: `server.js`
+- Build: `npm run build`
+- Start: `npm start`
 
-Não coloque senhas ou chaves de API no GitHub.
+## Configuração esperada na Hostinger
+
+- Node.js: 20.x, 22.x ou 24.x
+- Framework: Express.js (se detectado automaticamente)
+- Build command: `npm run build`
+- Start command: `npm start`
+- Entry file: `server.js` (se solicitado)
+- Output directory: `dist` (se solicitado)
 
 ## Banco
-Importe `sql/001_schema.sql` no banco MySQL exclusivo do Radar.
 
-## Testes
-- `/`
-- `/api/health`
+Importe `sql/001_schema.sql` no banco MySQL exclusivo do Radar e configure as variáveis `DB_*` no painel.
 
-A interface permite criar e listar investigações. O motor de pesquisa ainda será implementado na próxima etapa.
+Não inclua `.env` no ZIP.

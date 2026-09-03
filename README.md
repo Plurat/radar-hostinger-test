@@ -1,4 +1,4 @@
-# Radar Editorial 0.5.0
+# Radar Editorial 0.5.1
 
 Administração, autenticação, usuários e limites.
 

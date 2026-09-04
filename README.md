@@ -31,3 +31,9 @@ Usuários têm limites mensais para investigações, pesquisas Web e análises I
 
 ## 0.6.0.1
 Correção do fluxo de pesquisa direcionada: remove erro de variável indefinida no fechamento do job e registra corretamente a consulta principal.
+
+
+## 0.6.1
+- Shell global de navegação para usuário e administrador.
+- Dashboard inicial do usuário e indicadores administrativos.
+- Administrador pode adicionar um domínio diretamente de um resultado de pesquisa às fontes recomendadas, mediante confirmação.

@@ -1,8 +1,8 @@
 {
   "name": "radar-editorial",
-  "version": "0.5.2",
+  "version": "0.6.1",
   "private": true,
-  "description": "Radar Editorial 0.5.2 — cadastro aprovado, e-mails e CRP",
+  "description": "Radar Editorial 0.6.1 — navegação, dashboards e curadoria de fontes",
   "type": "module",
   "engines": {
     "node": ">=22 <25"

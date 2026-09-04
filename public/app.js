@@ -1,6 +1,6 @@
 const sourceTargetsArea=document.getElementById('source-targets'); const refreshSourceTargetsButton=document.getElementById('refresh-source-targets');
 let currentUser=null;
-async function ensureAuthenticated(){const r=await fetch('/api/auth/me',{cache:'no-store'});if(r.status===401){location.href='/login';return false}if(!r.ok)throw new Error('Não foi possível validar a sessão.');const d=await r.json();currentUser=d.user;const n=document.getElementById('account-name');if(n)n.textContent=currentUser.name||currentUser.email;const l=document.getElementById('admin-link');if(l&&currentUser.role==='admin')l.classList.remove('hidden');const b=document.getElementById('logout-button');if(b)b.onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/login'};return true}
+async function ensureAuthenticated(){const r=await fetch('/api/auth/me',{cache:'no-store'});if(r.status===401){location.href='/login';return false}if(!r.ok)throw new Error('Não foi possível validar a sessão.');const d=await r.json();currentUser=d.user;const n=document.getElementById('account-name');if(n)n.textContent=currentUser.name||currentUser.email;const role=document.querySelector('.account-role');if(role)role.textContent=currentUser.role==='admin'?'Administrador':'Usuário';const l=document.getElementById('admin-link');if(l&&currentUser.role==='admin')l.classList.remove('hidden');const b=document.getElementById('logout-button');if(b)b.onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/login'};return true}
 const form = document.getElementById('investigation-form');
 const titleInput = document.getElementById('title');
 const objectiveInput = document.getElementById('objective');
@@ -79,6 +79,18 @@ async function loadInvestigations() {
   }
 }
 
+async function loadDashboard(){
+  try{
+    const [me, inv]=await Promise.all([fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()),fetch('/api/investigations',{cache:'no-store'}).then(r=>r.json())]);
+    if(me?.user){
+      const name=document.getElementById('dashboard-name'); if(name) name.textContent=me.user.name||me.user.email;
+      const di=document.getElementById('dashboard-investigations'); if(di) di.textContent=Array.isArray(inv)?inv.length:0;
+      const dr=document.getElementById('dashboard-research'); if(dr) dr.textContent=Math.max(0,Number(me.user.research_limit||0)-Number(me.usage?.research||0));
+      const da=document.getElementById('dashboard-analysis'); if(da) da.textContent=Math.max(0,Number(me.user.analysis_limit||0)-Number(me.usage?.analysis||0));
+    }
+  }catch(e){console.warn('dashboard',e)}
+}
+
 async function openInvestigation(id) {
   currentInvestigationId = id;
   stopPolling();
@@ -117,6 +129,7 @@ function renderDetail(data) {
   renderJob(data.latest_job);
   renderAnalysisJob(data.latest_analysis_job, data.analysis_summary);
   renderSources(data.sources || [], data.analyses || {});
+  bindSourceAdminActions();
   renderDedupSummary(data.relations, data.counts?.sources || 0);
 
   const jobStatus = data.latest_job?.status;
@@ -233,9 +246,26 @@ function renderSources(sources, analyses = {}) {
       ${source.summary ? `<p>${escapeHtml(source.summary)}</p>` : ''}
       ${relationNote}
       ${renderSourceAnalysis(analyses[String(source.id)])}
+      ${currentUser?.role==='admin' ? `<div class="source-actions"><button type="button" class="source-add-button secondary" data-source-url="${escapeHtml(source.url)}" data-source-title="${escapeHtml(source.title)}" data-source-domain="${escapeHtml(source.domain||'')}" title="Adicionar este domínio às fontes recomendadas">+ Adicionar fonte</button></div>` : ''}
       <div class="source-meta"><strong>${source.published_at ? `Data de publicação: ${escapeHtml(formatDate(source.published_at))}` : 'Data de publicação: não identificada'}</strong><span>Coletada em ${escapeHtml(formatDate(source.created_at))}</span></div>
     </article>`;
   }).join('');
+}
+
+function bindSourceAdminActions(){
+  document.querySelectorAll('.source-add-button').forEach(button=>{
+    button.addEventListener('click',async()=>{
+      const domain=button.dataset.sourceDomain||'';
+      if(!domain)return;
+      if(!confirm(`Adicionar ${domain} às fontes recomendadas?`))return;
+      button.disabled=true; button.textContent='Adicionando...';
+      try{
+        const r=await fetch('/api/admin/recommended-sources',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:domain,domain,category:'web',priority:50,description:`Fonte adicionada pelo administrador a partir de uma pesquisa: ${button.dataset.sourceTitle||''}`})});
+        const d=await r.json(); if(!r.ok)throw new Error(d.error||'Não foi possível adicionar a fonte.');
+        button.textContent=d.already_exists?'✓ Fonte já cadastrada':'✓ Fonte adicionada';
+      }catch(e){button.disabled=false;button.textContent='+ Adicionar fonte';alert(e.message)}
+    });
+  });
 }
 
 function startPolling() {
@@ -321,4 +351,4 @@ if (startAnalysisButton) startAnalysisButton.addEventListener('click', startAnal
 
 updateCounter();
 loadSourceTargets();
-ensureAuthenticated().then(ok=>{if(ok)loadInvestigations()}).catch(()=>location.href="/login");
+ensureAuthenticated().then(ok=>{if(ok){loadInvestigations();loadDashboard()}}).catch(()=>location.href="/login");

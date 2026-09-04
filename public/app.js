@@ -253,7 +253,7 @@ function stopPolling() {
 async function startResearch() {
   if (!currentInvestigationId) return;
   startResearchButton.disabled = true;
-  startResearchButton.textContent = 'Criando job...';
+  startResearchButton.textContent = 'Preparando pesquisa...';
   try {
     const response = await fetch(`/api/investigations/${encodeURIComponent(currentInvestigationId)}/jobs`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_type: 'research' })
@@ -272,7 +272,7 @@ async function startResearch() {
 async function startAnalysis() {
   if (!currentInvestigationId) return;
   startAnalysisButton.disabled = true;
-  startAnalysisButton.textContent = 'Criando análise...';
+  startAnalysisButton.textContent = 'Preparando análise...';
   if (analysisNote) analysisNote.textContent = 'Enviando as fontes para análise...';
   try {
     const response = await fetch(`/api/investigations/${encodeURIComponent(currentInvestigationId)}/analyses`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({}) });

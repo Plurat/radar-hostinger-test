@@ -738,9 +738,9 @@ async function runResearchJob(jobId) {
     }
 
     await scoreInvestigationSources(investigationId, job.title, job.objective);
-    const payload = JSON.stringify({ provider:'tavily', query:selected.query, queries_attempted:queries, attempts,
+    const payload = JSON.stringify({ provider:'tavily', query:queries[0] || null, queries_attempted:queries, attempts,
       raw_results:collected.length, unique_results:uniqueResults.length, inserted, duplicates, skipped, max_results:resultLimit, targeted_domains:targetRows.map(x=>x.domain),
-      attempts, outcome:'success' });
+      outcome:'success' });
     await pool.query(`UPDATE research_jobs SET status='completed',finished_at=NOW(),payload=? WHERE id=?`, [payload, jobId]);
     await pool.query(`UPDATE investigations SET status='completed',updated_at=NOW() WHERE id=?`, [investigationId]);
   } catch (error) {

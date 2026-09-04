@@ -23,8 +23,11 @@ Usuários têm limites mensais para investigações, pesquisas Web e análises I
 - SMTP configurável por variáveis de ambiente.
 
 
-## 0.6.0
+## 0.6.0.1
 - Fontes recomendadas controladas pelo administrador.
 - Usuário pode selecionar fontes prioritárias por investigação.
 - Pesquisa Web usa consultas `site:dominio` para as fontes selecionadas e não exclui a pesquisa geral quando nenhuma fonte é selecionada.
 - Domínios desconhecidos encontrados em links/fontes geram sugestões para avaliação do administrador.
+
+## 0.6.0.1
+Correção do fluxo de pesquisa direcionada: remove erro de variável indefinida no fechamento do job e registra corretamente a consulta principal.

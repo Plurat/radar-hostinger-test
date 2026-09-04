@@ -14,3 +14,17 @@ O banco existente é preservado. As tabelas `users` e `sessions` são criadas au
 
 ## Limites
 Usuários têm limites mensais para investigações, pesquisas Web e análises IA, além de limite de fontes por pesquisa. Administradores não sofrem os limites.
+
+## 0.5.2
+- Cadastro com CRP no formato XX/XXXXX.
+- E-mail automático ao solicitar cadastro e ao aprovar.
+- Templates de e-mail editáveis no painel administrativo.
+- Registro de envios e falhas de e-mail.
+- SMTP configurável por variáveis de ambiente.
+
+
+## 0.6.0
+- Fontes recomendadas controladas pelo administrador.
+- Usuário pode selecionar fontes prioritárias por investigação.
+- Pesquisa Web usa consultas `site:dominio` para as fontes selecionadas e não exclui a pesquisa geral quando nenhuma fonte é selecionada.
+- Domínios desconhecidos encontrados em links/fontes geram sugestões para avaliação do administrador.

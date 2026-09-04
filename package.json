@@ -1,8 +1,8 @@
 {
   "name": "radar-editorial",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "private": true,
-  "description": "Radar Editorial 0.5.0 — administração, autenticação e limites",
+  "description": "Radar Editorial 0.5.2 — cadastro aprovado, e-mails e CRP",
   "type": "module",
   "engines": {
     "node": ">=22 <25"
@@ -14,6 +14,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
-    "mysql2": "^3.14.4"
+    "mysql2": "^3.14.4",
+    "nodemailer": "^7.0.6"
   }
 }

@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const maxResults = Math.min(Math.max(Number(process.env.SEARCH_MAX_RESULTS || 15), 1), 20);
-const appVersion = '0.6.2';
+const appVersion = '0.6.2.1';
 const openAiModel = String(process.env.OPENAI_MODEL || 'gpt-5.6-luna').trim();
 
 app.use(cors());
@@ -876,6 +876,7 @@ app.get('/admin/usuarios',(_req,res)=>res.sendFile(path.join(publicPath,'admin-u
 app.get('/admin/fontes',(_req,res)=>res.sendFile(path.join(publicPath,'admin-sources.html')));
 app.get('/admin/emails',(_req,res)=>res.sendFile(path.join(publicPath,'admin-email.html')));
 app.get('/admin/consumo',(_req,res)=>res.sendFile(path.join(publicPath,'admin-usage.html')));
+app.get('/atualizacoes',(_req,res)=>res.sendFile(path.join(publicPath,'updates.html')));
 app.get('/investigacoes',(_req,res)=>res.sendFile(path.join(publicPath,'investigations.html')));
 app.get('/nova-investigacao',(_req,res)=>res.sendFile(path.join(publicPath,'new-investigation.html')));
 app.get('/investigacao',(_req,res)=>res.sendFile(path.join(publicPath,'investigation.html')));

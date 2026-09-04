@@ -1,12 +1,29 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investigações · Radar Editorial</title><link rel="stylesheet" href="/styles.css?v=0.6.2.1"></head><body><div class="app-shell"><nav class="side-nav" aria-label="Navegação principal">
- <div class="nav-brand"><span class="nav-mark">R</span><div><strong>Radar Editorial</strong><small data-user-role>Plataforma</small></div></div>
- <a href="/" class="nav-link" data-nav="dashboard">⌂ <span>Dashboard</span></a>
- <a href="/investigacoes" class="nav-link" data-nav="investigacoes" aria-current="page">⌕ <span>Investigações</span></a>
- <a href="/nova-investigacao" class="nav-link" data-nav="nova">＋ <span>Nova investigação</span></a>
- <a href="/pesquisa-web" class="nav-link" data-nav="pesquisa">◎ <span>Pesquisa Web</span></a>
- <a href="/perfil" class="nav-link" data-nav="perfil">♙ <span>Meu perfil</span></a>
- <div class="nav-spacer"></div>
- <a href="/admin" class="nav-link" data-admin-only>⚙ <span>Administração</span></a>
- <button class="nav-link nav-logout" type="button" data-logout>↪ <span>Sair</span></button>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Investigações · Radar Editorial</title><link rel="stylesheet" href="/styles.css?v=0.6.2.2"></head><body><div class="app-shell"><nav class="side-nav" aria-label="Navegação principal">
+  <div class="nav-brand">
+    <a href="/" class="brand-link" aria-label="Radar Editorial — Dashboard">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="3"/><path d="M24 24l11-11M24 24l-3 12M24 24l-12 1" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="24" r="4" fill="currentColor"/></svg></span>
+      <span class="brand-copy"><strong>Radar Editorial</strong><small data-user-role>Plataforma</small></span>
+    </a>
+  </div>
+  <div class="nav-section-label">Workspace</div>
+  <div class="nav-links">
+    <a href="/" class="nav-link" data-nav="dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v9.2a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Dashboard</span></a>
+    <a href="/investigacoes" class="nav-link" data-nav="investigacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 5 5"/></svg><span>Investigações</span></a>
+    <a href="/nova-investigacao" class="nav-link" data-nav="nova"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nova investigação</span></a>
+    <a href="/pesquisa-web" class="nav-link" data-nav="pesquisa"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.2 2.4 3.2 5.2 3.2 8.5s-1 6.1-3.2 8.5c-2.2-2.4-3.2-5.2-3.2-8.5S9.8 5.9 12 3.5Z"/></svg><span>Pesquisa Web</span></a>
+    <a href="/perfil" class="nav-link" data-nav="perfil"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.3 3.1-5 7-5s6.2 1.7 7 5"/></svg><span>Meu perfil</span></a>
+    <a href="/atualizacoes" class="nav-link" data-nav="atualizacoes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10l4 4V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1Z"/><path d="M14 4.5V9h5M8 13h8M8 16.5h6"/></svg><span>Atualizações</span></a>
+  </div>
+  <div class="nav-spacer"></div>
+  <div class="nav-section-label admin-nav-label" data-admin-only>Administração</div>
+  <a href="/admin" class="nav-link" data-admin-only><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 2 5-6"/></svg><span>Administração</span></a>
+  <div class="nav-footer">
+    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Alterar aparência">
+      <span class="theme-icon sun" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></span>
+      <span class="theme-icon moon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg></span>
+      <span class="theme-label"><span>Claro</span><span>Escuro</span></span>
+    </button>
+    <button class="nav-link nav-logout" type="button" data-logout><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5M15 8l4 4-4 4M19 12H9"/></svg><span>Sair</span></button>
+  </div>
 </nav>
 <div class="app-main"><main class="container"><header class="hero"><div class="eyebrow">RADAR EDITORIAL</div><div class="title-row"><div><h1>Investigações</h1><p class="subtitle">Organize suas pautas, pesquisas e análises.</p></div><a class="badge-link" href="/nova-investigacao">+ Nova investigação</a></div></header><section class="card"><div id="investigation-list" class="list-stack"><div class="empty">Carregando...</div></div></section></main></div></div><script src="/layout.js?v=0.6.2.1"></script><script src="/investigations.js?v=0.6.2"></script></body></html>

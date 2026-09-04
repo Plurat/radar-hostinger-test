@@ -1,3 +1,4 @@
+const sourceTargetsArea=document.getElementById('source-targets'); const refreshSourceTargetsButton=document.getElementById('refresh-source-targets');
 let currentUser=null;
 async function ensureAuthenticated(){const r=await fetch('/api/auth/me',{cache:'no-store'});if(r.status===401){location.href='/login';return false}if(!r.ok)throw new Error('Não foi possível validar a sessão.');const d=await r.json();currentUser=d.user;const n=document.getElementById('account-name');if(n)n.textContent=currentUser.name||currentUser.email;const l=document.getElementById('admin-link');if(l&&currentUser.role==='admin')l.classList.remove('hidden');const b=document.getElementById('logout-button');if(b)b.onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/login'};return true}
 const form = document.getElementById('investigation-form');
@@ -285,6 +286,10 @@ async function startAnalysis() {
   }
 }
 
+
+async function loadSourceTargets(){ if(!sourceTargetsArea)return; try{ const response=await fetch('/api/recommended-sources',{cache:'no-store'}); const data=await response.json(); if(!response.ok)throw new Error(data.error||'Não foi possível carregar as fontes.'); if(!data.length){sourceTargetsArea.innerHTML='<div class="muted">Nenhuma fonte recomendada cadastrada pelo administrador.</div>';return;} sourceTargetsArea.innerHTML=data.map(x=>`<label class="source-target-item"><input type="checkbox" name="source_ids" value="${escapeHtml(x.id)}"><span><strong>${escapeHtml(x.name)}</strong><small>${escapeHtml(x.domain)} · ${escapeHtml(x.category)}</small></span></label>`).join(''); }catch(e){sourceTargetsArea.innerHTML=`<div class="error">${escapeHtml(e.message)}</div>`;} }
+if(refreshSourceTargetsButton)refreshSourceTargetsButton.addEventListener('click',loadSourceTargets);
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const title = titleInput.value.trim();
@@ -295,11 +300,11 @@ form.addEventListener('submit', async (event) => {
   showMessage('Criando investigação...');
   try {
     const response = await fetch('/api/investigations', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, objective })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, objective, source_ids:[...document.querySelectorAll('input[name=source_ids]:checked')].map(x=>Number(x.value)) })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Não foi possível criar a investigação.');
-    titleInput.value = ''; objectiveInput.value = ''; updateCounter();
+    titleInput.value = ''; objectiveInput.value = ''; document.querySelectorAll('input[name=source_ids]:checked').forEach(x=>x.checked=false); updateCounter();
     showMessage('Investigação criada com sucesso.', 'success');
     await loadInvestigations();
   } catch (error) { showMessage(error.message, 'error'); }
@@ -315,4 +320,5 @@ startResearchButton.addEventListener('click', startResearch);
 if (startAnalysisButton) startAnalysisButton.addEventListener('click', startAnalysis);
 
 updateCounter();
+loadSourceTargets();
 ensureAuthenticated().then(ok=>{if(ok)loadInvestigations()}).catch(()=>location.href="/login");

@@ -233,6 +233,9 @@ async function startResearch() {
 }
 
 
+if (startResearchButton) startResearchButton.addEventListener('click', startResearch);
+if (startAnalysisButton) startAnalysisButton.addEventListener('click', startAnalysis);
+
 async function startAnalysis() {
   if (!currentInvestigationId) return;
   startAnalysisButton.disabled = true;
